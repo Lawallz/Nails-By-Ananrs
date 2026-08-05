@@ -1,0 +1,6 @@
+{
+  "name": "LuxeNail Studio",
+  "description": "Estúdio de nail design de alto luxo com curadoria de serviços, agendamento interativo por etapas e consultoria de estilo inteligente.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

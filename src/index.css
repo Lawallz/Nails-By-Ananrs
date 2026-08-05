@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+/* Configuração de Cores Premium para o Tailwind v4 */
+@theme {
+  /* Isso vai substituir a cor 'amber' do Tailwind pelo seu Nude Rosé Médio */
+  --color-amber-500: #dec0b3;
+  --color-amber-600: #cca393;
+  --color-amber-400: #f5ebe6;
+
+  /* Isso vai substituir a cor 'yellow' do Tailwind por variações do Nude */
+  --color-yellow-400: #f5ebe6;
+  --color-yellow-500: #dec0b3;
+  --color-yellow-600: #b88f7f;
+}
+
+/* Base resets & refined luxury theme defaults */
+body {
+  font-family: var(--font-sans);
+  background-color: #0b0a0a;
+  color: #f7f6f5;
+  overflow-x: hidden;
+}
+
+h1, h2, h3, h4, .font-serif-title {
+  font-family: var(--font-serif);
+}
+
+/* Rich nude and metallic finishes */
+.text-gold-gradient {
+  background: linear-gradient(135deg, #f3e9e5 0%, #e8cdc2 40%, #cca393 80%, #b88f7f 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.bg-gold-gradient {
+  background: linear-gradient(135deg, #f5ebe6 0%, #dec0b3 50%, #b88f7f 100%);
+}
+
+.border-gold-glow {
+  border: 1px solid rgba(222, 192, 179, 0.2);
+  box-shadow: 0 0 15px rgba(222, 192, 179, 0.03);
+}
+
+.border-gold-glow:hover {
+  border-color: rgba(222, 192, 179, 0.4);
+  box-shadow: 0 0 20px rgba(222, 192, 179, 0.08);
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0d0c0c;
+}
+::-webkit-scrollbar-thumb {
+  background: #2b2523;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #dec0b3;
+}
+
+/* Grayscale to color transition */
+.portfolio-hover-img {
+  filter: grayscale(100%);
+  transition: filter 0.6s cubic-bezier(0.16, 1, 0.3, 1), transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.portfolio-hover-img:hover {
+  filter: grayscale(0%);
+  transform: scale(1.03);
+}
