@@ -47,12 +47,12 @@ export const SERVICES: Service[] = [
     image: "/manutencao premium.jpg"
   },
   {
-    id: "blindagem-unhas",
-    name: "Blindagem de Unhas",
+    id: "banho-de-gel",
+    name: "Banho de Gel",
     category: "manicure",
     duration: "120 min",
     price: 65,
-    description: "Proteção para unhas naturais crescerem incrivelmente saudáveis. Uma potente camada de gel protetora que evita quebras, trincas e incômodas descamações.",
+    description: "Nivelamento primoroso e resistência para suas unhas naturais. Ideal para unhas propensas a quebrar fácil, mantendo sua extensão original elegante.",
     image: "/blindagem unha.png"
   },
   {
@@ -115,7 +115,7 @@ export const PORTFOLIO: PortfolioItem[] = [
   {
     id: "p1",
     title: "Minimalismo Linear",
-    description: "Nail art com técnica de traços finos pretos sobre base fosca pérola.",
+    description: "Nail art com técnica de traços finos brancos sobre base brilhante pérola.",
     image: "/minimalistmo decorado.jpeg"
   },
   {
@@ -133,7 +133,7 @@ export const PORTFOLIO: PortfolioItem[] = [
   {
     id: "p4",
     title: "Elegância Monocromática",
-    description: "Preto luxo, linhas precisas e acabamento impecável em estúdio.",
+    description: "Esmaltação de luxo, linhas precisas e acabamento impecável em estúdio.",
     image: "/magnético monocromático.jpeg"
   }
 ];

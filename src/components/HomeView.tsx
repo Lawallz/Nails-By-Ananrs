@@ -172,7 +172,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ onGoToServices, onGoToStylis
                 Espaço Exclusivo
               </h3>
               <p className="text-zinc-400 text-xs md:text-sm leading-relaxed font-light">
-                Dose sensorial de calma. Enquanto cuidamos de você, aproveite nosso cardápio de cafés expressos de torra nobre, lattes artesanais e uma cortesia refrescante de espumante.
+                Enquanto transformamos suas unhas, aproveite um cafezinho quentinho, aquele ar-condicionado geladinho e uma playlist de respeito para você relaxar.
               </p>
             </div>
 

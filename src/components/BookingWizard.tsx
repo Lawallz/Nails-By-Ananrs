@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { Clock, Calendar as CalendarIcon, User, Phone, CheckCircle2, ArrowRight, ArrowLeft, Send } from "lucide-react";
 import emailjs from "@emailjs/browser";
-import { SERVICES } from "../data";
 import { Service, Booking } from "../types";
 import { supabase } from "../lib/supabase"; // Importação do Supabase
 
@@ -24,6 +23,26 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
   const [clientPhone, setClientPhone] = useState("");
   const [confirmedBooking, setConfirmedBooking] = useState<Booking | null>(null);
   const [existingBookings, setExistingBookings] = useState<Booking[]>([]);
+  
+  // Lista dinâmica de serviços vinda do Supabase (Admin)
+  const [services, setServices] = useState<Service[]>([]);
+  const [loadingServices, setLoadingServices] = useState(true);
+
+  // Busca os serviços direto do Supabase
+  useEffect(() => {
+    const fetchServices = async () => {
+      setLoadingServices(true);
+      const { data, error } = await supabase.from('services').select('*');
+      if (error) {
+        console.error("Erro ao buscar serviços do Supabase:", error);
+      } else if (data) {
+        setServices(data as Service[]);
+      }
+      setLoadingServices(false);
+    };
+
+    fetchServices();
+  }, []);
 
   // Carrega agendamentos reais do Supabase para validação global de conflitos
   useEffect(() => {
@@ -35,7 +54,6 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
           return;
         }
         
-        // Mapeia o formato do banco para o formato do seu tipo Booking se necessário
         const formatted: Booking[] = (data || []).map((item: any) => ({
           id: item.id,
           serviceId: item.service_id,
@@ -73,6 +91,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
   };
 
   const parseDuration = (durationStr: string): number => {
+    if (!durationStr) return 60;
     if (durationStr.includes(":")) {
       return timeToMinutes(durationStr);
     }
@@ -91,7 +110,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
       const currentEnd = currentStart + serviceDuration;
 
       const isOccupied = bookingsToday.some(booking => {
-        const bookedService = SERVICES.find(s => s.id === booking.serviceId || s.name === booking.serviceName);
+        const bookedService = services.find(s => s.id === booking.serviceId || s.name === booking.serviceName);
         const bookedDuration = bookedService ? parseDuration(bookedService.duration) : 60;
         
         const bookedStart = timeToMinutes(booking.time);
@@ -105,7 +124,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
         disabled: isOccupied
       };
     });
-  }, [selectedDate, selectedService, existingBookings]);
+  }, [selectedDate, selectedService, existingBookings, services]);
 
   const calendarDays = useMemo(() => {
     const list = [];
@@ -165,7 +184,6 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
       createdAt: new Date().toISOString()
     };
 
-    // Salva no Supabase (Backend em nuvem)
     try {
       const { error } = await supabase.from('bookings').insert([
         {
@@ -190,7 +208,6 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
       return;
     }
 
-    // Envio do EmailJS para a Ana
     const dateMeta = calendarDays.find(d => d.id === selectedDate);
     const readableDate = dateMeta ? `${dateMeta.number} de ${dateMeta.month}` : selectedDate;
 
@@ -270,40 +287,50 @@ Aguardo a confirmação da agenda! Obrigada.`;
               <p className="text-zinc-500 text-xs">Selecione um procedimento para moldar e esmaltar suas unhas.</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4" id="wizard-services-grid">
-              {SERVICES.map((serv) => (
-                <div 
-                  key={serv.id}
-                  id={`wizard-service-row-${serv.id}`}
-                  onClick={() => setSelectedService(serv)}
-                  className={`p-4 rounded border cursor-pointer flex items-center justify-between gap-4 transition-all ${
-                    selectedService?.id === serv.id
-                      ? "border-[#dec0b3] bg-[#161413]/30"
-                      : "border-zinc-900/60 bg-zinc-950 hover:bg-[#121110]/35 hover:border-zinc-800"
-                  }`}
-                >
-                  <div className="flex items-center gap-3.5 min-w-0">
-                    <div className="w-14 h-14 rounded overflow-hidden bg-zinc-900 inline-block shrink-0">
-                      <img src={serv.image} alt={serv.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+            {loadingServices ? (
+              <div className="text-center py-12 text-zinc-500 text-xs animate-pulse">
+                Carregando serviços do painel administrativo...
+              </div>
+            ) : services.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4" id="wizard-services-grid">
+                {services.map((serv) => (
+                  <div 
+                    key={serv.id}
+                    id={`wizard-service-row-${serv.id}`}
+                    onClick={() => setSelectedService(serv)}
+                    className={`p-4 rounded border cursor-pointer flex items-center justify-between gap-4 transition-all ${
+                      selectedService?.id === serv.id
+                        ? "border-[#dec0b3] bg-[#161413]/30"
+                        : "border-zinc-900/60 bg-zinc-950 hover:bg-[#121110]/35 hover:border-zinc-800"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="w-14 h-14 rounded overflow-hidden bg-zinc-900 inline-block shrink-0">
+                        <img src={serv.image} alt={serv.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      </div>
+                      <div className="text-left min-w-0">
+                        <h4 className="font-serif text-white text-sm font-semibold truncate">{serv.name}</h4>
+                        <p className="text-zinc-500 text-[10px] mt-0.5">• {serv.duration}</p>
+                      </div>
                     </div>
-                    <div className="text-left min-w-0">
-                      <h4 className="font-serif text-white text-sm font-semibold truncate">{serv.name}</h4>
-                      <p className="text-zinc-500 text-[10px] mt-0.5">• {serv.duration}</p>
+                    <div className="text-right shrink-0">
+                      <span className="text-xs font-serif font-bold text-[#dec0b3]">R$ {serv.price}</span>
                     </div>
                   </div>
-                  <div className="text-right shrink-0">
-                    <span className="text-xs font-serif font-bold text-[#dec0b3]">R$ {serv.price}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12 text-zinc-500 text-xs">
+                Nenhum serviço cadastrado no painel administrativo.
+              </div>
+            )}
 
             <div className="pt-4 flex justify-end border-t border-zinc-900/60">
               <button
                 id="wizard-step1-next"
                 disabled={!selectedService}
                 onClick={handleNextStep}
-                className="flex items-center gap-2 bg-[#dec0b3] disabled:bg-zinc-850 disabled:text-zinc-500 hover:bg-[#b88f7f] text-zinc-950 font-semibold uppercase text-xs tracking-wider py-3 px-6 rounded-sm transition-colors"
+                className="flex items-center gap-2 bg-[#dec0b3] disabled:bg-zinc-850 disabled:text-zinc-500 hover:bg-[#b88f7f] text-zinc-950 font-semibold uppercase text-xs tracking-wider py-3 px-6 rounded-sm transition-colors cursor-pointer"
               >
                 Escolher Data & Hora
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -328,7 +355,7 @@ Aguardo a confirmação da agenda! Obrigada.`;
                 </div>
                 <button 
                   onClick={handlePrevStep} 
-                  className="text-[#dec0b3] text-xs font-semibold uppercase tracking-wider underline hover:text-white"
+                  className="text-[#dec0b3] text-xs font-semibold uppercase tracking-wider underline hover:text-white cursor-pointer"
                 >
                   Alterar
                 </button>
@@ -385,7 +412,7 @@ Aguardo a confirmação da agenda! Obrigada.`;
                             ? "bg-zinc-950/40 border-zinc-900/50 text-zinc-600 cursor-not-allowed line-through"
                             : selectedTime === time
                             ? "bg-zinc-950 text-[#dec0b3] border-[#dec0b3] shadow-inner font-extrabold"
-                            : "bg-[#0d0c0c] border-zinc-900 text-zinc-400 hover:border-zinc-800 hover:text-white"
+                            : "bg-[#0d0c0c] border-zinc-900 text-zinc-400 hover:border-zinc-800 hover:text-white cursor-pointer"
                         }`}
                       >
                         <span>{time}</span>
@@ -401,7 +428,7 @@ Aguardo a confirmação da agenda! Obrigada.`;
             <div className="pt-6 border-t border-zinc-900/60 flex items-center justify-between gap-4">
               <button
                 onClick={handlePrevStep}
-                className="flex items-center gap-2 text-zinc-400 hover:text-white text-xs font-semibold uppercase tracking-wider py-3 px-5 border border-zinc-900 hover:border-zinc-800 rounded bg-transparent transition-all"
+                className="flex items-center gap-2 text-zinc-400 hover:text-white text-xs font-semibold uppercase tracking-wider py-3 px-5 border border-zinc-900 hover:border-zinc-800 rounded bg-transparent transition-all cursor-pointer"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
                 Voltar
@@ -411,7 +438,7 @@ Aguardo a confirmação da agenda! Obrigada.`;
                 id="wizard-step2-next"
                 disabled={!selectedDate || !selectedTime}
                 onClick={handleNextStep}
-                className="flex items-center gap-2 bg-[#dec0b3] disabled:bg-zinc-850 disabled:text-zinc-500 hover:bg-[#b88f7f] text-zinc-950 font-semibold uppercase text-xs tracking-wider py-3.5 px-6 rounded-sm transition-colors"
+                className="flex items-center gap-2 bg-[#dec0b3] disabled:bg-zinc-850 disabled:text-zinc-500 hover:bg-[#b88f7f] text-zinc-950 font-semibold uppercase text-xs tracking-wider py-3.5 px-6 rounded-sm transition-colors cursor-pointer"
               >
                 Prosseguir para Confirmação
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -451,20 +478,40 @@ Aguardo a confirmação da agenda! Obrigada.`;
                 </div>
 
                 <div className="space-y-2">
-                  <label htmlFor="client-phone" className="text-xs font-semibold tracking-wider text-zinc-300 uppercase block">Seu WhatsApp de Atendimento:</label>
-                  <div className="relative">
-                    <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-                    <input
-                      type="tel"
-                      id="client-phone"
-                      required
-                      value={clientPhone}
-                      onChange={(e) => setClientPhone(e.target.value)}
-                      placeholder="Exemplo: (11) 99999-9999"
-                      className="w-full h-11 bg-[#090808] border border-zinc-900 rounded py-2 pl-10 pr-4 text-sm text-zinc-200 focus:outline-none focus:border-[#dec0b3]/60 transition-colors"
-                    />
+                    <label htmlFor="client-phone" className="text-xs font-semibold tracking-wider text-zinc-300 uppercase block">Seu WhatsApp de Atendimento:</label>
+                    <div className="relative">
+                      <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                      <input
+                        type="tel"
+                        id="client-phone"
+                        required
+                        maxLength={15} // Limita o tamanho máximo formatado: (11) 99999-9999
+                        value={clientPhone}
+                        onChange={(e) => {
+                          // Pega apenas os números digitados
+                          const rawValue = e.target.value.replace(/\D/g, "");
+                          
+                          // Trava para aceitar no máximo 11 dígitos (DDD + 9 do celular)
+                          if (rawValue.length <= 11) {
+                            let formatted = rawValue;
+                            
+                            // Aplica a máscara visualmente bonitinha (XX) XXXXX-XXXX
+                            if (rawValue.length > 2 && rawValue.length <= 7) {
+                              formatted = `(${rawValue.slice(0, 2)}) ${rawValue.slice(2)}`;
+                            } else if (rawValue.length > 7) {
+                              formatted = `(${rawValue.slice(0, 2)}) ${rawValue.slice(2, 7)}-${rawValue.slice(7)}`;
+                            } else if (rawValue.length > 0) {
+                              formatted = `(${rawValue}`;
+                            }
+                            
+                            setClientPhone(formatted);
+                          }
+                        }}
+                        placeholder="Exemplo: (11) 99999-9999"
+                        className="w-full h-11 bg-[#090808] border border-zinc-900 rounded py-2 pl-10 pr-4 text-sm text-zinc-200 focus:outline-none focus:border-[#dec0b3]/60 transition-colors"
+                      />
+                    </div>
                   </div>
-                </div>
 
                 <div className="grid grid-cols-3 gap-3 pt-2" id="wizard-badges">
                   <div className="p-3 text-center rounded bg-zinc-950/40 border border-zinc-900">
@@ -485,7 +532,7 @@ Aguardo a confirmação da agenda! Obrigada.`;
                   <button
                     type="button"
                     onClick={handlePrevStep}
-                    className="flex items-center gap-2 text-zinc-400 hover:text-white text-xs font-semibold uppercase tracking-wider py-3 px-5 border border-zinc-900 hover:border-zinc-800 rounded bg-transparent transition-all"
+                    className="flex items-center gap-2 text-zinc-400 hover:text-white text-xs font-semibold uppercase tracking-wider py-3 px-5 border border-zinc-900 hover:border-zinc-800 rounded bg-transparent transition-all cursor-pointer"
                   >
                     <ArrowLeft className="w-3.5 h-3.5" />
                     Voltar
@@ -494,7 +541,7 @@ Aguardo a confirmação da agenda! Obrigada.`;
                   <button
                     type="submit"
                     id="wizard-btn-submit-booking"
-                    className="flex items-center gap-2 bg-[#dec0b3] hover:bg-[#b88f7f] text-zinc-950 font-bold uppercase text-xs tracking-wider py-3.5 px-6 rounded-sm transition-colors"
+                    className="flex items-center gap-2 bg-[#dec0b3] hover:bg-[#b88f7f] text-zinc-950 font-bold uppercase text-xs tracking-wider py-3.5 px-6 rounded-sm transition-colors cursor-pointer"
                   >
                     Reservar Momento
                     <CheckCircle2 className="w-3.5 h-3.5" />

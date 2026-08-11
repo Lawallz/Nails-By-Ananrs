@@ -40,12 +40,52 @@ export const ServicesView: React.FC<ServicesViewProps> = ({ onSelectServiceForBo
     { id: "outros", label: "Arte & Reposição" },
   ];
 
-  // Filtrando os serviços buscados da nuvem
+// Filtragem definitiva: Ignora o banco e classifica estritamente pelo nome do serviço
   const filteredServices = useMemo(() => {
     return services.filter((service) => {
-      const matchesSearch = service.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                            (service.description && service.description.toLowerCase().includes(searchQuery.toLowerCase()));
-      const matchesCategory = activeCategory === "all" || service.category === activeCategory;
+      const query = searchQuery.toLowerCase().trim();
+      const name = service.name ? service.name.toLowerCase() : "";
+      const description = service.description ? service.description.toLowerCase() : "";
+      
+      const matchesSearch = name.includes(query) || description.includes(query);
+
+      // Se a aba for "all", mostra tudo que bate com a busca
+      if (activeCategory === "all") {
+        return matchesSearch;
+      }
+
+      let detectedCategory = "outros"; // Padrão ("Arte & Reposição")
+
+      // 1. Alongamentos (Prioridade máxima: qualquer variação de alongamento, fibra ou manutenção)
+      if (
+        name.includes("alongamento") || 
+        name.includes("fibra") || 
+        name.includes("manutenção")
+      ) {
+        detectedCategory = "alongamento";
+      } 
+      // 2. Pedicure / Pés
+      else if (
+        name.includes("pedicure") || 
+        name.includes("pé") || 
+        name.includes("pés") || 
+        name.includes("spa dos pés")
+      ) {
+        detectedCategory = "pedicure";
+      } 
+      // 3. Manicure / Mãos (Banho de gel, blindagem, manicure normal ou esmaltação geral)
+      else if (
+        name.includes("manicure") || 
+        name.includes("blindagem") || 
+        name.includes("banho de gel") || 
+        name.includes("esmaltação")
+      ) {
+        detectedCategory = "manicure";
+      }
+      // 4. O restante cai automaticamente em "outros" (Arte & Reposição)
+
+      const matchesCategory = detectedCategory === activeCategory;
+
       return matchesSearch && matchesCategory;
     });
   }, [services, searchQuery, activeCategory]);

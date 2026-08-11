@@ -16,14 +16,14 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({ onGoToBooking, onG
       img: SERVICES.find(s => s.id === "alongamento-gel")?.image || ""
     },
     {
-      name: "Fibra de Vidro",
+      name: "Esmaltação em Gel - Pedicure",
       desc: "Resistência estrutural extrema para unhas finas.",
-      img: SERVICES.find(s => s.id === "fibra-vidro")?.image || ""
+      img: SERVICES.find(s => s.id === "pedicure-luxo")?.image || ""
     },
     {
-      name: "Blindagem de Unhas",
+      name: "Banho de Gel",
       desc: "Escudo rígido protetor para crescer saudável.",
-      img: SERVICES.find(s => s.id === "blindagem-unhas")?.image || ""
+      img: SERVICES.find(s => s.id === "banho-de-gel")?.image || ""
     },
     {
       name: "Esmaltação em Gel",

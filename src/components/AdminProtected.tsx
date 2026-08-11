@@ -1,33 +1,75 @@
-import React, { useState } from "react";
-import { Lock, KeyRound, ArrowRight } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Lock, KeyRound, Mail, ArrowRight, Loader2 } from "lucide-react";
+import { createClient } from "@supabase/supabase-js";
+
+// Inicializa o cliente do Supabase usando as chaves públicas normais
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 interface AdminProtectedProps {
   children: React.ReactNode;
 }
 
 export const AdminProtected: React.FC<AdminProtectedProps> = ({ children }) => {
-  // Verifica se já está logado na sessão atual do navegador
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return sessionStorage.getItem("@nails_admin_auth") === "true";
-  });
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(true);
   
+  // Se preferir fixar o e-mail do admin, pode deixar aqui. Ou alterar para o usuário digitar.
+  const [emailInput, setEmailInput] = useState("admin@nailsbyananrs.com");
   const [passwordInput, setPasswordInput] = useState("");
-  const [error, setError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
-  const handleLogin = (e: React.FormEvent) => {
+  // Verifica se já existe uma sessão ativa no Supabase ao carregar a página
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        setIsAuthenticated(true);
+      }
+      setLoading(false);
+    });
+
+    // Escuta mudanças de login/logout
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsAuthenticated(!!session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Pega a senha configurada no seu .env
-    const adminPassword = import.meta.env.VITE_ADMIN_PASSWORD || "admin123";
+    setLoading(true);
+    setErrorMessage("");
 
-    if (passwordInput === adminPassword) {
-      sessionStorage.setItem("@nails_admin_auth", "true");
-      setIsAuthenticated(true);
-      setError(false);
-    } else {
-      setError(true);
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: emailInput,
+        password: passwordInput,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (data.session) {
+        setIsAuthenticated(true);
+      }
+    } catch (error: any) {
+      setErrorMessage(error.message || "E-mail ou senha incorretos.");
       setPasswordInput("");
+    } finally {
+      setLoading(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0d0c0c] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-[#dec0b3] animate-spin" />
+      </div>
+    );
+  }
 
   if (isAuthenticated) {
     return <>{children}</>;
@@ -50,6 +92,26 @@ export const AdminProtected: React.FC<AdminProtectedProps> = ({ children }) => {
         </div>
 
         <form onSubmit={handleLogin} className="space-y-4">
+          
+          {/* Campo de E-mail */}
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+              E-mail de Administrador
+            </label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+              <input
+                type="email"
+                value={emailInput}
+                onChange={(e) => setEmailInput(e.target.value)}
+                placeholder="admin@seuemail.com"
+                required
+                className="w-full bg-[#0d0c0c] border border-zinc-900 rounded py-2.5 pl-10 pr-4 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-[#dec0b3]/60 focus:ring-1 focus:ring-[#dec0b3]/20 transition-all"
+              />
+            </div>
+          </div>
+
+          {/* Campo de Senha */}
           <div className="space-y-1.5">
             <label className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
               Senha de Acesso
@@ -59,28 +121,33 @@ export const AdminProtected: React.FC<AdminProtectedProps> = ({ children }) => {
               <input
                 type="password"
                 value={passwordInput}
-                onChange={(e) => {
-                  setPasswordInput(e.target.value);
-                  if (error) setError(false);
-                }}
-                placeholder="Digite a senha administrativa"
+                onChange={(e) => setPasswordInput(e.target.value)}
+                placeholder="Digite sua senha segura"
+                required
                 className="w-full bg-[#0d0c0c] border border-zinc-900 rounded py-2.5 pl-10 pr-4 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-[#dec0b3]/60 focus:ring-1 focus:ring-[#dec0b3]/20 transition-all"
                 autoFocus
               />
             </div>
-            {error && (
+            {errorMessage && (
               <p className="text-rose-400 text-[11px] font-medium pt-1">
-                Senha incorreta. Tente novamente.
+                Credenciais inválidas. Verifique os dados.
               </p>
             )}
           </div>
 
           <button
             type="submit"
-            className="w-full flex items-center justify-center gap-2 bg-[#dec0b3] hover:bg-[#b88f7f] text-zinc-950 py-3 rounded text-xs font-semibold tracking-wider uppercase transition-all shadow-md"
+            disabled={loading}
+            className="w-full flex items-center justify-center gap-2 bg-[#dec0b3] hover:bg-[#b88f7f] text-zinc-950 py-3 rounded text-xs font-semibold tracking-wider uppercase transition-all shadow-md disabled:opacity-50"
           >
-            <span>Entrar no Painel</span>
-            <ArrowRight className="w-3.5 h-3.5" />
+            {loading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <>
+                <span>Entrar no Painel</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </>
+            )}
           </button>
         </form>
 

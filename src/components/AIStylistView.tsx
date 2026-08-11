@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Sparkles, Calendar, ChevronRight, RefreshCw, AlertCircle, Copy, Check } from "lucide-react";
 import { SERVICES } from "../data";
 import { Service, AIStylistRecommendation } from "../types";
+import { GoogleGenAI, Type } from "@google/genai";
 
 interface AIStylistViewProps {
   onBookService: (service: Service) => void;
@@ -46,35 +47,51 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) =
 
   const handleConsultation = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true); // Alterado de loading para setLoading
+    setLoading(true);
     setError(null);
     setResult(null);
 
     try {
-      const response = await fetch("/api/consult", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          occasion,
-          nailShape,
-          nailStatus,
-          styleDescription,
-        }),
+      // Inicializa o SDK do Google GenAI direto no front-end de forma segura
+      const ai = new GoogleGenAI({ 
+        apiKey: import.meta.env.VITE_GEMINI_API_KEY 
       });
 
-      if (!response.ok) {
-        throw new Error("Não foi possível processar a recomendação.");
+      const prompt = `Atue como uma Nail Designer especialista e consultora de visagismo de alto padrão para o estúdio NAILS BY ANANRS.
+      Com base nos dados abaixo, retorne um objeto JSON estrito contendo a recomendação ideal para a cliente:
+      - Ocasião: ${occasion}
+      - Formato desejado: ${nailShape}
+      - Estado de saúde das unhas: ${nailStatus}
+      - Detalhes/Preferência de estilo da cliente: ${styleDescription || "Nenhum detalhe adicional informado."}
+
+      A lista de IDs de serviços disponíveis no estúdio é: ${SERVICES.map(s => s.id).join(", ")}. Escolha o ID (recommendedServiceId) que mais se encaixa na necessidade.
+      
+      O formato JSON de resposta deve conter exatamente estas chaves:
+      - recommendedServiceId (string, ID do serviço escolhido da lista)
+      - explanation (string, explicação acolhedora e elegante do ritual escolhido)
+      - artStyleSuggestion (string, sugestão de estetismo artístico detalhado)
+      - colorPalette (array de strings contendo 3 cores no formato exato "#HEXADECIMAL Nome da Cor", ex: ["#dec0b3 Nude Clássico", "#000000 Preto Luxo", "#ffffff Branco Leite"])`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+        }
+      });
+
+      if (!response.text) {
+        throw new Error("Resposta vazia da IA.");
       }
 
-      const data = await response.json();
-      setResult(data);
+      const parsedData = JSON.parse(response.text) as AIStylistRecommendation;
+      setResult(parsedData);
+
     } catch (err: any) {
-      console.error(err);
+      console.error("Erro no consultor de IA:", err);
       setError("Houve um pequeno contratempo ao conectar com nosso estilista AI. Gostaria de tentar novamente?");
-    } finally { // Corrigido de 'final' para 'finally'
-      setLoading(false); // Alterado de loading para setLoading
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -305,7 +322,7 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) =
                 <div className="space-y-1">
                   <span className="text-[9px] tracking-[0.2em] font-bold text-[#dec0b3] uppercase">Diagnóstico Recomendado</span>
                   <p className="text-xs text-zinc-500">
-                    {result.isFallback ? "Gerado via regras heurísticas locais" : "Análise profunda por Gemini Studio"}
+                    Análise profunda por Gemini Studio Client-Side
                   </p>
                 </div>
                 <div className="px-3 py-1 bg-[#dec0b3]/10 text-[#dec0b3] rounded text-[10px] font-bold tracking-wider uppercase border border-[#dec0b3]/20">
@@ -409,7 +426,5 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) =
       </div>
 
     </div>
-
-    
   );
 };
