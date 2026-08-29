@@ -1,20 +1,48 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# NAILS BY ANANRS - Studio & Intelligent Booking Platform
 
-# Run and deploy your AI Studio app
+> Plataforma digital desenvolvida para profissionais de nail design. Construída com React, TypeScript, Tailwind CSS, Supabase e integrada com Google Gemini AI para recomendação inteligente de visagismo e estilo.
 
-This contains everything you need to run your app locally.
+---
 
-View your app in AI Studio: https://ai.studio/apps/47456cdb-d53f-4fee-a4a7-ec4a03ac7aaa
+## Visao Geral
 
-## Run Locally
+O projeto consiste em uma aplicacao web completa para gestao de atendimento e experiencia do cliente em um studio de manicure e alongamento de unhas. A solucao engloba catalogo dinamico de servicos, agendamento em tempo real sem sobreposicao de horarios, painel administrativo protegido e assistente de visagismo baseado em inteligencia artificial.
 
-**Prerequisites:**  Node.js
+---
 
+## Funcionalidades Principais
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+### 1. Sistema de Agendamento em Nuvem
+* Sincronizacao em tempo real via Supabase para evitar sobreposicao de horarios.
+* Fluxo de agendamento em etapas validando duracao, servico selecionado e conflitos de agenda.
+* Integracao direta para confirmacao de atendimento via WhatsApp.
+
+### 2. Consultor de Estilo Baseado em IA
+* Questionario interativo cobrindo ocasiao, formato de preferencia e condicao das unhas.
+* Integracao com a API do Google Gemini para geracao de recomendacoes personalizadas e paletas de cores.
+
+### 3. Painel Administrativo Protegido
+* Area restrita (`/admin`) para gerenciamento de servicos, precos e duracoes.
+* Persistência segura utilizando banco de dados relacional.
+
+---
+
+## Tecnologias Utilizadas
+
+* **Front-end:** React, TypeScript, Tailwind CSS, Lucide Icons
+* **Banco de Dados & Backend:** Supabase (PostgreSQL, Realtime, RLS)
+* **Inteligencia Artificial:** Google GenAI SDK (Gemini 2.5 Flash)
+* **Hospedagem:** Vercel
+
+---
+
+## Executando o Projeto Localmente
+
+### Pre-requisitos
+* Node.js (versao 18 ou superior)
+* Gerenciador de pacotes npm ou yarn
+
+### 1. Clonar o repositorio
+```bash
+git clone [https://github.com/Lawallz/Nails-By-Ananrs.git](https://github.com/Lawallz/Nails-By-Ananrs.git)
+cd Nails-By-Ananrs
