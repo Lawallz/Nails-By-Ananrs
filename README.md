@@ -46,3 +46,19 @@ O projeto consiste em uma aplicacao web completa para gestao de atendimento e ex
 ```bash
 git clone [https://github.com/Lawallz/Nails-By-Ananrs.git](https://github.com/Lawallz/Nails-By-Ananrs.git)
 cd Nails-By-Ananrs
+```
+
+### 2. Instalar dependências
+`npm install`
+
+### 3. Configurar variaveis de ambiente
+Crie um arquivo .env.local na raiz do projeto com as chaves necessarias:
+
+### 4. Rodar localmente
+`npm run dev`
+
+O projeto estara disponivel em http://localhost:5173.
+
+Licenca
+Desenvolvido para NAILS BY ANANRS. Todos os direitos reservados.
+
