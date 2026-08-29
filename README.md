@@ -57,7 +57,7 @@ Crie um arquivo .env.local na raiz do projeto com as chaves necessarias:
 ### 4. Rodar localmente
 `npm run dev`
 
-O projeto estara disponivel em http://localhost:5173.
+O projeto estara disponivel em http://localhost:1234X.
 
 Licenca
 Desenvolvido para NAILS BY ANANRS. Todos os direitos reservados.
