@@ -1,6 +1,12 @@
 import React, { useState } from "react";
 import { Menu, X, Calendar, Instagram } from "lucide-react";
 
+const TikTokIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true" focusable="false">
+    <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64c.3 0 .59.05.86.14V9.4a6.33 6.33 0 0 0-6.32 10.1 6.33 6.33 0 0 0 11.8-3.83V8.68a8.27 8.27 0 0 0 4.84 1.55V6.8c-.36 0-.72-.04-1.07-.11Z" />
+  </svg>
+);
+
 interface NavbarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
@@ -18,6 +24,8 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenB
   ];
 
   const instagramUrl = "https://www.instagram.com/nailsby.ananrs"; 
+
+  const tiktokUrl = "https://www.tiktok.com/@nailsby.ananrs";
 
   return (
     <nav className="sticky top-0 z-50 w-full bg-[#0b0a0a]/80 backdrop-blur-md backdrop-filter border-b border-zinc-900/40">
@@ -41,7 +49,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenB
           </div>
 
           {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center gap-8" id="nav-desktop-menu">
+          <div className="hidden lg:flex items-center gap-8" id="nav-desktop-menu">
             {navItems.map((item) => (
               <button
                 key={item.id}
@@ -62,7 +70,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenB
           </div>
 
           {/* CTA & Social Desktop */}
-          <div className="hidden md:flex items-center gap-5">
+          <div className="hidden lg:flex items-center gap-5">
             {/* Ícone Instagram */}
             <a
               href={instagramUrl}
@@ -72,6 +80,17 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenB
               aria-label="Siga-nos no Instagram"
             >
               <Instagram className="w-5 h-5" />
+            </a>
+
+            <a
+              href={tiktokUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-2 text-zinc-400 hover:text-[#dec0b3] transition-colors duration-300"
+              aria-label="Siga-nos no TikTok"
+              title="TikTok · @nailsby.ananrs"
+            >
+              <TikTokIcon className="w-5 h-5" />
             </a>
 
             {/* Botão de Agendamento */}
@@ -86,12 +105,14 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenB
           </div>
 
           {/* Mobile menu button */}
-          <div className="md:hidden flex items-center">
+          <div className="lg:hidden flex items-center">
             <button
               id="nav-mobile-hamburger"
               onClick={() => setIsOpen(!isOpen)}
               className="p-2 rounded-md text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors"
               aria-label="Menu principal"
+              aria-expanded={isOpen}
+              aria-controls="nav-mobile-dropdown"
             >
               {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
@@ -102,7 +123,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenB
 
       {/* Mobile Menu Draw Dropdown */}
       {isOpen && (
-        <div className="md:hidden bg-[#0e0d0d]/95 backdrop-blur-lg backdrop-filter border-b border-zinc-900 px-4 pt-2 pb-6 space-y-4 shadow-2xl animate-in fade-in slide-in-from-top-4 duration-300" id="nav-mobile-dropdown">
+        <div className="lg:hidden bg-[#0e0d0d]/95 backdrop-blur-lg backdrop-filter border-b border-zinc-900 px-4 pt-2 pb-6 space-y-4 shadow-2xl animate-in fade-in slide-in-from-top-4 duration-300" id="nav-mobile-dropdown">
           <div className="space-y-1">
             {navItems.map((item) => (
               <button
@@ -146,6 +167,16 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenB
             >
               <Instagram className="w-4 h-4 text-[#dec0b3]" />
               Siga no Instagram
+            </a>
+            <a
+              href={tiktokUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setIsOpen(false)}
+              className="w-full flex items-center justify-center gap-2 border border-zinc-800 bg-zinc-950 text-zinc-300 font-medium py-3 px-4 rounded-md text-xs tracking-wider uppercase hover:text-white hover:border-zinc-700 transition-colors"
+            >
+              <TikTokIcon className="w-4 h-4 text-[#dec0b3]" />
+              Siga no TikTok
             </a>
           </div>
         </div>

@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { supabase } from "../lib/supabase";
-import { Trash2, Plus, DollarSign, Calendar, Clock, User, Phone } from "lucide-react";
+import { Trash2, Plus, DollarSign, Calendar, Clock, User, Phone, Pencil, X, Loader2 } from "lucide-react";
 
 interface Booking {
   id: string;
@@ -30,12 +30,55 @@ export const AdminView: React.FC = () => {
   const [newDuration, setNewDuration] = useState("");
   const [newImage, setNewImage] = useState("");
 
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const [failure, setFailure] = useState("");
+  const formRef = useRef<HTMLFormElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const busyRef = useRef(false);
+
+  useEffect(() => {
+    if (!imageFile) { setPreview(""); return; }
+    const url = URL.createObjectURL(imageFile);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [imageFile]);
+
+  const resetForm = () => {
+    setEditingId(null); setNewName(""); setNewPrice("");
+    setNewDuration(""); setNewImage(""); setImageFile(null);
+    if (fileRef.current) fileRef.current.value = "";
+  };
+
+  const editService = (service: Service) => {
+    setEditingId(service.id); setNewName(service.name);
+    setNewPrice(String(service.price)); setNewDuration(service.duration);
+    setNewImage(service.image); setImageFile(null); setFailure(""); setMessage("");
+    if (fileRef.current) fileRef.current.value = "";
+    formRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    formRef.current?.querySelector<HTMLInputElement>('input[type="text"]')?.focus({ preventScroll: true });
+  };
+
+  const selectImage = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setFailure("");
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 5 * 1024 * 1024) {
+      setFailure("Escolha uma foto JPG, PNG ou WebP com até 5 MB.");
+      event.target.value = ""; return;
+    }
+    setImageFile(file);
+  };
+
   const fetchData = async () => {
     setLoading(true);
     
     // Busca agendamentos do Supabase
     const { data: bookingsData, error: bError } = await supabase.from('bookings').select('*');
-    if (bError) console.error("Erro ao buscar bookings:", bError);
+    if (bError) setFailure("Não foi possível carregar os agendamentos: " + bError.message);
     
     if (bookingsData) {
       // Mapeia os dados garantindo compatibilidade com diferentes nomes de colunas no banco
@@ -53,7 +96,7 @@ export const AdminView: React.FC = () => {
 
     // Busca serviços
     const { data: servicesData, error: sError } = await supabase.from('services').select('*');
-    if (sError) console.error("Erro ao buscar services:", sError);
+    if (sError) setFailure("Não foi possível carregar os serviços: " + sError.message);
     if (servicesData) setServices(servicesData);
 
     setLoading(false);
@@ -65,42 +108,60 @@ export const AdminView: React.FC = () => {
 
   const handleDeleteBooking = async (id: string) => {
     if (confirm("Tem certeza que deseja remover este agendamento?")) {
-      await supabase.from('bookings').delete().eq('id', id);
-      fetchData();
+      const { data, error } = await supabase.from('bookings').delete().eq('id', id).select('id');
+      if (error || !data?.length) { setFailure(error?.message || 'Não foi possível excluir o agendamento.'); return; }
+      setBookings(current => current.filter(booking => booking.id !== id));
     }
   };
 
-  const handleAddService = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newName || !newPrice || !newDuration || !newImage) return;
-
-    const id = newName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, '-');
-    const { error } = await supabase.from('services').upsert([
-      {
-        id,
-        name: newName,
-        price: parseFloat(newPrice),
-        duration: newDuration,
-        image: newImage
-      }
-    ]);
-
-    if (!error) {
-      alert("Serviço salvo com sucesso!");
-      setNewName("");
-      setNewPrice("");
-      setNewDuration("");
-      setNewImage("");
-      fetchData();
-    } else {
-      alert("Erro ao salvar serviço: " + error.message);
+  const handleAddService = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (busyRef.current) return;
+    setFailure(""); setMessage("");
+    const price = Number(newPrice.replace(",", "."));
+    if (!newName.trim() || !newDuration.trim() || !newPrice.trim() || !Number.isFinite(price) || price < 0) {
+      setFailure("Preencha nome, duração e um preço válido."); return;
     }
+    if (!imageFile && !newImage) { setFailure("Escolha uma foto para o serviço."); return; }
+    busyRef.current = true; setSaving(true);
+    let uploadedPath: string | null = null;
+    let saved = false;
+    try {
+      let image = newImage;
+      if (imageFile) {
+        const extension = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" }[imageFile.type];
+        const path = `services/${crypto.randomUUID()}.${extension}`;
+        const { error } = await supabase.storage.from("services-images").upload(path, imageFile, { contentType: imageFile.type, upsert: false });
+        if (error) throw error;
+        uploadedPath = path;
+        image = supabase.storage.from("services-images").getPublicUrl(path).data.publicUrl;
+      }
+      const fields = { name: newName.trim(), price, duration: newDuration.trim(), image };
+      const query = editingId
+        ? supabase.from("services").update(fields).eq("id", editingId)
+        : supabase.from("services").insert({ id: crypto.randomUUID(), ...fields });
+      const { data, error } = await query.select("*").single();
+      if (error) throw error;
+      if (!data) throw new Error("O serviço não foi salvo. Confira seu acesso.");
+      saved = true;
+      setServices(current => editingId ? current.map(service => service.id === editingId ? data : service) : [...current, data]);
+      setMessage(editingId ? "Alterações salvas!" : "Serviço cadastrado!");
+      resetForm();
+    } catch (error) {
+      setFailure(error instanceof Error ? error.message : (error as { message?: string })?.message || "Não foi possível salvar o serviço.");
+      if (uploadedPath && !saved) {
+        const { error: cleanupError } = await supabase.storage.from("services-images").remove([uploadedPath]);
+        if (cleanupError) setFailure(current => current + " A foto enviada ficou no armazenamento; tente salvar novamente.");
+      }
+    } finally { busyRef.current = false; setSaving(false); }
   };
 
   const handleDeleteService = async (id: string) => {
     if (confirm("Deseja excluir este procedimento do site?")) {
-      await supabase.from('services').delete().eq('id', id);
-      fetchData();
+      const { data, error } = await supabase.from('services').delete().eq('id', id).select('id');
+      if (error || !data?.length) { setFailure(error?.message || 'Não foi possível excluir o serviço.'); return; }
+      setServices(current => current.filter(service => service.id !== id));
+      if (editingId === id) resetForm();
     }
   };
 
@@ -113,6 +174,8 @@ export const AdminView: React.FC = () => {
         <p className="text-xs text-zinc-400 mt-1">Gerencie os horários agendados pelas clientes e altere valores ou serviços em tempo real.</p>
       </div>
 
+      {failure && <p role="alert" className="text-sm text-rose-400">{failure}</p>}
+      {message && <p role="status" className="text-sm text-emerald-300">{message}</p>}
       {loading ? (
         <p className="text-xs text-zinc-500 animate-pulse">Carregando dados da nuvem...</p>
       ) : (
@@ -171,9 +234,10 @@ export const AdminView: React.FC = () => {
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
               
-              <form onSubmit={handleAddService} className="lg:col-span-5 bg-zinc-950 border border-zinc-900 p-6 rounded space-y-4">
-                <h3 className="text-xs uppercase tracking-widest font-bold text-zinc-300 border-b border-zinc-900 pb-2">Adicionar / Atualizar Serviço</h3>
+              <form ref={formRef} onSubmit={handleAddService} className="lg:col-span-5 bg-zinc-950 border border-zinc-900 p-6 rounded space-y-4">
+                <h3 className="text-xs uppercase tracking-widest font-bold text-zinc-300 border-b border-zinc-900 pb-2">{editingId ? "Editar serviço" : "Adicionar serviço"}</h3>
                 
+                <fieldset disabled={saving} className="space-y-4 disabled:opacity-60">
                 <div className="space-y-1">
                   <label className="text-[10px] uppercase text-zinc-400 font-semibold">Nome do Procedimento:</label>
                   <input 
@@ -190,7 +254,7 @@ export const AdminView: React.FC = () => {
                   <div className="space-y-1">
                     <label className="text-[10px] uppercase text-zinc-400 font-semibold">Preço (R$):</label>
                     <input 
-                      type="number" 
+                      type="number" min="0" step="0.01"
                       required
                       placeholder="120" 
                       value={newPrice} 
@@ -211,24 +275,20 @@ export const AdminView: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-[10px] uppercase text-zinc-400 font-semibold">URL da Imagem (Foto):</label>
-                  <input 
-                    type="url" 
-                    required
-                    placeholder="https://exemplo.com/foto.jpg" 
-                    value={newImage} 
-                    onChange={e => setNewImage(e.target.value)}
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded p-2.5 text-xs text-white focus:outline-none focus:border-[#dec0b3]"
-                  />
+                <div className="space-y-3">
+                  <label htmlFor="service-photo" className="block text-xs text-zinc-300">Foto do serviço</label>
+                  {(preview || newImage) && <img src={preview || newImage} alt="Prévia da foto do serviço" className="w-full h-44 rounded object-cover" />}
+                  <input id="service-photo" ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={selectImage} disabled={saving} className="block w-full text-xs text-zinc-300 file:mr-3 file:rounded file:border-0 file:bg-[#dec0b3] file:px-3 file:py-2 file:text-zinc-950" />
+                  <p className="text-xs text-zinc-500">JPG, PNG ou WebP, até 5 MB. {editingId ? "Para manter a foto atual, não selecione outra." : "Escolha uma foto do seu aparelho."}</p>
+                  {imageFile && <button type="button" disabled={saving} onClick={() => { setImageFile(null); if (fileRef.current) fileRef.current.value = ""; }} className="text-xs text-zinc-300 underline">Desfazer seleção da foto</button>}
                 </div>
-
-                <button 
-                  type="submit"
-                  className="w-full mt-2 flex items-center justify-center gap-2 bg-[#dec0b3] hover:bg-[#b88f7f] text-zinc-950 font-bold uppercase text-xs tracking-wider py-3 rounded transition-colors cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" /> Salvar Serviço no Site
+                <button type="submit" disabled={saving} className="w-full flex items-center justify-center gap-2 bg-[#dec0b3] text-zinc-950 font-bold text-sm py-3 rounded disabled:opacity-50">
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : editingId ? <Pencil className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                  {saving ? "Salvando…" : editingId ? "Salvar alterações" : "Cadastrar serviço"}
                 </button>
+                {editingId && <button type="button" disabled={saving} onClick={resetForm} className="w-full flex items-center justify-center gap-2 py-2 text-sm text-zinc-400"><X className="w-4 h-4" /> Cancelar edição</button>}
+
+                </fieldset>
               </form>
 
               <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -246,13 +306,16 @@ export const AdminView: React.FC = () => {
                           <p className="text-[10px] text-zinc-500">{serv.duration} • <span className="text-[#dec0b3] font-bold">R$ {serv.price}</span></p>
                         </div>
                       </div>
-                      <button 
+                      <div className="flex flex-col gap-1 shrink-0">
+                      <button type="button" disabled={saving} onClick={() => editService(serv)} className="flex items-center gap-1 text-[#dec0b3] text-xs p-2 disabled:opacity-50"><Pencil className="w-4 h-4" /> Editar</button>
+                      <button disabled={saving}
                         onClick={() => handleDeleteService(serv.id)}
                         className="text-zinc-600 hover:text-red-400 p-2 transition-colors shrink-0 cursor-pointer"
-                        title="Excluir serviço"
+                        title="Excluir serviço" aria-label={`Excluir ${serv.name}`}
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
+                      </div>
                     </div>
                   ))
                 )}

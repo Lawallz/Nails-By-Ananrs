@@ -1,6 +1,6 @@
 import React from "react";
-import { ShieldCheck, Sparkles, Heart, Coffee, Instagram, ArrowRight } from "lucide-react";
-import { CONCEPT_HERO_IMAGE, CONCEPT_INTERIOR_IMAGE } from "../data";
+import { ShieldCheck, Sparkles, Heart, Coffee, ArrowRight } from "lucide-react";
+import { CONCEPT_HERO_IMAGE } from "../data";
 
 interface HomeViewProps {
   onGoToServices: () => void;
@@ -85,7 +85,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ onGoToServices, onGoToStylis
                 {/* Main image */}
                 <div className="aspect-[4/5] w-full rounded-sm overflow-hidden bg-zinc-900 border border-zinc-950/50 relative shadow-2xl">
                   <img
-                    src={CONCEPT_HERO_IMAGE}
+                    src="/newmain.jpg"
                     alt="LuxeNail Design"
                     className="w-full h-full object-cover select-none relative z-10 hover:scale-105 transition-transform duration-700"
                     referrerPolicy="no-referrer"
@@ -106,6 +106,41 @@ export const HomeView: React.FC<HomeViewProps> = ({ onGoToServices, onGoToStylis
               </div>
             </div>
 
+          </div>
+        </div>
+      </section>
+
+      {/* Sobre a profissional */}
+      <section id="sobre-mim" aria-labelledby="sobre-mim-title" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-16 items-center">
+          <div className="lg:col-span-5 relative max-w-md w-full mx-auto">
+            <div className="absolute -inset-3 rounded-sm border border-[#dec0b3]/15 pointer-events-none" aria-hidden="true" />
+            <div className="aspect-[4/5] overflow-hidden rounded-sm bg-zinc-900 border border-zinc-800 shadow-2xl">
+              <img src="/ananrs.jpg" alt="Ananrs, nail designer do Nails by Ananrs" loading="lazy" width={800} height={1000} className="w-full h-full object-cover object-top" />
+            </div>
+            <div className="absolute bottom-4 left-4 right-4 bg-[#0b0a0a]/90 backdrop-blur-sm border border-[#dec0b3]/20 rounded-sm px-5 py-4">
+              <p className="text-[#dec0b3] font-serif text-xl">Ananrs</p>
+              <p className="text-zinc-400 text-[10px] uppercase tracking-[0.2em] mt-1">Nail designer · Nails by Ananrs</p>
+            </div>
+          </div>
+          <div className="lg:col-span-7 text-left space-y-6">
+            <span className="text-[#dec0b3] text-xs font-semibold tracking-[0.25em] uppercase">Sobre mim</span>
+            <h2 id="sobre-mim-title" className="text-3xl sm:text-4xl lg:text-5xl font-serif text-white font-light leading-tight">
+              Oi, eu sou a <span className="text-gold-gradient italic">Ananrs.</span>
+            </h2>
+            <div className="w-16 h-px bg-[#dec0b3]/40" aria-hidden="true" />
+            <p className="text-zinc-400 text-sm sm:text-base leading-relaxed">
+              Sou a profissional por trás do Nails by Ananrs. Aqui, quero que você encontre mais do que uma nova cor de esmalte: um momento para cuidar de si e expressar seu estilo.
+            </p>
+            <p className="text-zinc-400 text-sm sm:text-base leading-relaxed">
+              Minha proposta é ouvir suas ideias e pensar com você em unhas que combinem com sua personalidade e sua rotina. Do delicado ao marcante, cada escolha começa com o que faz você se sentir bem.
+            </p>
+            <p className="border-l border-[#dec0b3]/50 pl-5 font-serif italic text-lg text-zinc-300">
+              Vai ser um prazer te receber e conhecer suas ideias para a próxima transformação.
+            </p>
+            <button type="button" onClick={onGoToBooking} className="inline-flex items-center justify-center gap-2 bg-[#dec0b3] hover:bg-[#b88f7f] text-zinc-950 px-7 py-3.5 rounded-sm text-xs font-semibold uppercase tracking-wider transition-colors">
+              Agende seu momento <ArrowRight className="w-4 h-4" aria-hidden="true" />
+            </button>
           </div>
         </div>
       </section>
@@ -189,7 +224,8 @@ export const HomeView: React.FC<HomeViewProps> = ({ onGoToServices, onGoToStylis
             <div className="absolute -inset-3 rounded border border-[#d4b24f]/10 pointer-events-none scale-95"></div>
             <div className="aspect-[4/5] rounded overflow-hidden border border-zinc-900 shadow-2xl">
               <img
-                src={CONCEPT_INTERIOR_IMAGE}
+                src="/espaçonovo.jpg"
+                loading="lazy"
                 alt="Studio Nails By Ananrs"
                 className="w-full h-full object-cover select-none brightness-90 hover:scale-[1.03] transition-transform duration-700"
                 referrerPolicy="no-referrer"
@@ -197,7 +233,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ onGoToServices, onGoToStylis
             </div>
             {/* Small dynamic label */}
             <div className="absolute bottom-4 right-4 bg-zinc-950/90 text-zinc-300 blur-backdrop border border-zinc-800 px-3 py-1.5 text-[10px] tracking-[0.15em] uppercase rounded-sm">
-              Nails by Ananrs Interior
+              Conheça nosso espaço
             </div>
           </div>
 

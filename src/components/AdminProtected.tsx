@@ -1,11 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Lock, KeyRound, Mail, ArrowRight, Loader2 } from "lucide-react";
-import { createClient } from "@supabase/supabase-js";
-
-// Inicializa o cliente do Supabase usando as chaves públicas normais
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+import { supabase } from "../lib/supabase";
 
 interface AdminProtectedProps {
   children: React.ReactNode;

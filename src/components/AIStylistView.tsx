@@ -73,7 +73,7 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) =
       - colorPalette (array de strings contendo 3 cores no formato exato "#HEXADECIMAL Nome da Cor", ex: ["#dec0b3 Nude Clássico", "#000000 Preto Luxo", "#ffffff Branco Leite"])`;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.6-flash',
         contents: prompt,
         config: {
           responseMimeType: "application/json",
