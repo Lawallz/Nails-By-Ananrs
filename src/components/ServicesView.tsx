@@ -34,10 +34,10 @@ export const ServicesView: React.FC<ServicesViewProps> = ({ onSelectServiceForBo
 
   const categories = [
     { id: "all", label: "Todas" },
-    { id: "manicure", label: "Manicure & Blindagem" },
-    { id: "pedicure", label: "Pedicure & Spa" },
+    { id: "manicure", label: "Manicure & Banho" },
+    { id: "pedicure", label: "Pedicure" },
     { id: "alongamento", label: "Alongamentos" },
-    { id: "outros", label: "Arte & Reposição" },
+    { id: "outros", label: "Remoção & Reposição" },
   ];
 
 // Filtragem definitiva: Ignora o banco e classifica estritamente pelo nome do serviço
