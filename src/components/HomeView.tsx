@@ -126,7 +126,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ onGoToServices, onGoToStylis
           <div className="lg:col-span-7 text-left space-y-6">
             <span className="text-[#dec0b3] text-xs font-semibold tracking-[0.25em] uppercase">Sobre mim</span>
             <h2 id="sobre-mim-title" className="text-3xl sm:text-4xl lg:text-5xl font-serif text-white font-light leading-tight">
-              Oi, eu sou a <span className="text-gold-gradient italic">Ananrs.</span>
+              Oi, eu sou a <span className="text-gold-gradient italic">Ana Clara.</span>
             </h2>
             <div className="w-16 h-px bg-[#dec0b3]/40" aria-hidden="true" />
             <p className="text-zinc-400 text-sm sm:text-base leading-relaxed">
