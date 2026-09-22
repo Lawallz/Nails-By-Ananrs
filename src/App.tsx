@@ -195,7 +195,7 @@ export default function App() {
       <footer className="bg-zinc-980 py-8 border-t border-zinc-950/60" id="app-footer">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-4 text-xs font-light tracking-wide text-zinc-600">
           <div className="flex items-center justify-center gap-2 text-zinc-500 font-serif text-sm">
-            <span>© 2026 Nails By Ananrs.</span>
+            <span>Feito por @oglawall</span>
             <span>•</span>
             <span className="text-[#e2c56f]">Artistry in Every Detail.</span>
           </div>
