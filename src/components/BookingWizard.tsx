@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Clock, Calendar as CalendarIcon, User, Phone, CheckCircle2, ArrowRight, ArrowLeft, Send } from "lucide-react";
 import emailjs from "@emailjs/browser";
 import { Service, Booking } from "../types";
@@ -22,7 +22,13 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
   const [clientName, setClientName] = useState("");
   const [clientPhone, setClientPhone] = useState("");
   const [confirmedBooking, setConfirmedBooking] = useState<Booking | null>(null);
-  const [existingBookings, setExistingBookings] = useState<Booking[]>([]);
+  const [existingBookings, setExistingBookings] = useState<Array<{ date: string; time: string; duration_minutes: number }>>([]);
+  const [loadingAvailability, setLoadingAvailability] = useState(true);
+  const [availabilityError, setAvailabilityError] = useState("");
+  const [bookingError, setBookingError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [refreshAvailability, setRefreshAvailability] = useState(0);
+  const submittingRef = useRef(false);
   
   // Lista dinâmica de serviços vinda do Supabase (Admin)
   const [services, setServices] = useState<Service[]>([]);
@@ -44,36 +50,30 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
     fetchServices();
   }, []);
 
-  // Carrega agendamentos reais do Supabase para validação global de conflitos
+  // Public availability contains only date, time and duration, never customer data.
   useEffect(() => {
-    const fetchBookings = async () => {
+    let active = true;
+    setLoadingAvailability(true);
+    setAvailabilityError("");
+    const fetchSlots = async () => {
       try {
-        const { data, error } = await supabase.from('bookings').select('*');
-        if (error) {
-          console.error("Erro ao buscar agendamentos do Supabase:", error);
-          return;
+        const { data, error } = await supabase.from('booking_slots')
+          .select('date,time,duration_minutes')
+          .gte('date', new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }));
+        if (error) throw error;
+        if (active) setExistingBookings(data || []);
+      } catch {
+        if (active) {
+          setExistingBookings([]);
+          setAvailabilityError("Não foi possível consultar os horários. Tente novamente.");
         }
-        
-        const formatted: Booking[] = (data || []).map((item: any) => ({
-          id: item.id,
-          serviceId: item.service_id,
-          serviceName: item.service_name,
-          price: item.price,
-          date: item.date,
-          time: item.time,
-          clientName: item.client_name,
-          clientPhone: item.client_phone,
-          createdAt: item.created_at
-        }));
-
-        setExistingBookings(formatted);
-      } catch (err) {
-        console.error("Erro de conexão com o Supabase:", err);
+      } finally {
+        if (active) setLoadingAvailability(false);
       }
     };
-
-    fetchBookings();
-  }, [step]);
+    void fetchSlots();
+    return () => { active = false; };
+  }, [step, refreshAvailability]);
 
   // Se um serviço pré-selecionado vier de fora, avança pro Passo 2
   useEffect(() => {
@@ -110,8 +110,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
       const currentEnd = currentStart + serviceDuration;
 
       const isOccupied = bookingsToday.some(booking => {
-        const bookedService = services.find(s => s.id === booking.serviceId || s.name === booking.serviceName);
-        const bookedDuration = bookedService ? parseDuration(bookedService.duration) : 60;
+        const bookedDuration = booking.duration_minutes;
         
         const bookedStart = timeToMinutes(booking.time);
         const bookedEnd = bookedStart + bookedDuration;
@@ -121,10 +120,10 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
 
       return {
         time,
-        disabled: isOccupied
+        disabled: isOccupied || loadingAvailability || !!availabilityError
       };
     });
-  }, [selectedDate, selectedService, existingBookings, services]);
+  }, [selectedDate, selectedService, existingBookings, loadingAvailability, availabilityError]);
 
   const calendarDays = useMemo(() => {
     const list = [];
@@ -136,7 +135,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
       const dayName = future.toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "");
       const dayNum = future.getDate();
       const monthName = future.toLocaleDateString("pt-BR", { month: "short" }).replace(".", "");
-      const fullIso = future.toISOString().split("T")[0];
+      const fullIso = future.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
 
       list.push({
         id: fullIso,
@@ -152,7 +151,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
   const handleNextStep = () => {
     if (step === 1 && selectedService) {
       setStep(2);
-    } else if (step === 2 && selectedDate && selectedTime) {
+    } else if (step === 2 && selectedDate && selectedTime && !loadingAvailability && !availabilityError) {
       setStep(3);
     }
   };
@@ -170,66 +169,56 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
 
   const handleSubmitBooking = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedService || !selectedDate || !selectedTime || !clientName || !clientPhone) return;
-
-    const newBooking: Booking = {
-      id: Math.random().toString(36).substring(2, 9).toUpperCase(),
-      serviceId: selectedService.id,
-      serviceName: selectedService.name,
-      price: selectedService.price,
-      date: selectedDate,
-      time: selectedTime,
-      clientName,
-      clientPhone,
-      createdAt: new Date().toISOString()
-    };
-
+    if (submittingRef.current || !selectedService || !selectedDate || !selectedTime || !clientName || !clientPhone) return;
+    submittingRef.current = true;
+    setSubmitting(true);
+    setBookingError("");
     try {
-      const { error } = await supabase.from('bookings').insert([
-        {
-          id: newBooking.id,
-          service_id: newBooking.serviceId,
-          service_name: newBooking.serviceName,
-          price: newBooking.price,
-          date: newBooking.date,
-          time: newBooking.time,
-          client_name: newBooking.clientName,
-          client_phone: newBooking.clientPhone
-        }
-      ]);
-
+      const newBooking: Booking = {
+        id: crypto.randomUUID(), serviceId: selectedService.id,
+        serviceName: selectedService.name, price: selectedService.price,
+        date: selectedDate, time: selectedTime,
+        clientName: clientName.trim(), clientPhone,
+        createdAt: new Date().toISOString()
+      };
+      const { error, status } = await supabase.from('bookings').insert({
+        id: newBooking.id, service_id: newBooking.serviceId,
+        service_name: newBooking.serviceName, price: newBooking.price,
+        date: newBooking.date, time: newBooking.time,
+        client_name: newBooking.clientName, client_phone: newBooking.clientPhone
+      });
       if (error) {
-        console.error("Erro ao inserir no Supabase:", error);
-        alert("Ops! Este horário acabou de ser ocupado por outra cliente. Escolha outro horário.");
+        if (status === 429 || error.code === 'PT429') {
+          setBookingError("Você atingiu o limite de agendamentos. Aguarde até uma hora ou fale com a Ana pelo WhatsApp.");
+        } else if (status === 409 || error.code === 'PT409') {
+          setBookingError("Este horário acabou de ser ocupado. Escolha outro horário.");
+          setSelectedTime("");
+          setStep(2);
+          setRefreshAvailability(value => value + 1);
+        } else {
+          setBookingError("Não foi possível reservar. Confira os dados e tente novamente.");
+        }
         return;
       }
-    } catch (err) {
-      console.error("Erro de conexão ao salvar:", err);
-      return;
+      const dateMeta = calendarDays.find(d => d.id === selectedDate);
+      const readableDate = dateMeta ? `${dateMeta.number} de ${dateMeta.month}` : selectedDate;
+      void emailjs.send("service_tlnez6o", "template_pbx0qys", {
+        client_name: newBooking.clientName, client_phone: clientPhone,
+        service_name: selectedService.name, booking_date: readableDate,
+        booking_time: selectedTime, booking_id: newBooking.id
+      }, "7RvvuR5w-kfUKwH-8").catch(() => {
+        // The booking is already saved; an email failure must not trigger a duplicate.
+        console.warn("Agendamento salvo, mas a notificação por e-mail não foi enviada.");
+      });
+      setConfirmedBooking(newBooking);
+      setStep(4);
+      onBookingSuccess();
+    } catch {
+      setBookingError("Não foi possível confirmar a resposta. Antes de tentar novamente, confirme a reserva com a Ana.");
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
     }
-
-    const dateMeta = calendarDays.find(d => d.id === selectedDate);
-    const readableDate = dateMeta ? `${dateMeta.number} de ${dateMeta.month}` : selectedDate;
-
-    const templateParams = {
-      client_name: clientName,
-      client_phone: clientPhone,
-      service_name: selectedService.name,
-      booking_date: readableDate,
-      booking_time: selectedTime,
-      booking_id: newBooking.id
-    };
-
-    emailjs.send(
-      "service_tlnez6o",
-      "template_pbx0qys",
-      templateParams,
-      "7RvvuR5w-kfUKwH-8"
-    ).catch((err) => console.error("Falha ao enviar e-mail:", err));
-
-    setConfirmedBooking(newBooking);
-    setStep(4);
-    onBookingSuccess();
   };
 
   const getWhatsAppLink = (booking: Booking | null) => {
@@ -259,6 +248,14 @@ Aguardo a confirmação da agenda! Obrigada.`;
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-10 text-left" id="booking-wizard-container">
       
+      {bookingError && <p role="alert" className="text-sm text-rose-300">{bookingError}</p>}
+      {availabilityError && step < 4 && (
+        <div role="alert" className="text-sm text-rose-300">
+          <p>{availabilityError}</p>
+          <button type="button" className="underline mt-2" onClick={() => setRefreshAvailability(value => value + 1)}>Tentar novamente</button>
+        </div>
+      )}
+      {loadingAvailability && step === 2 && <p role="status" className="text-sm text-zinc-400">Consultando horários...</p>}
       {/* 1. Progress Step Bar Indicators */}
       <div className="border-b border-zinc-900 pb-6" id="wizard-step-indicator">
         <div className="flex items-center justify-between text-xs font-semibold tracking-wider text-zinc-500 uppercase select-none">
@@ -436,7 +433,7 @@ Aguardo a confirmação da agenda! Obrigada.`;
 
               <button
                 id="wizard-step2-next"
-                disabled={!selectedDate || !selectedTime}
+                disabled={!selectedDate || !selectedTime || loadingAvailability || !!availabilityError}
                 onClick={handleNextStep}
                 className="flex items-center gap-2 bg-[#dec0b3] disabled:bg-zinc-850 disabled:text-zinc-500 hover:bg-[#b88f7f] text-zinc-950 font-semibold uppercase text-xs tracking-wider py-3.5 px-6 rounded-sm transition-colors cursor-pointer"
               >
@@ -469,6 +466,7 @@ Aguardo a confirmação da agenda! Obrigada.`;
                       type="text"
                       id="client-name"
                       required
+                      maxLength={120}
                       value={clientName}
                       onChange={(e) => setClientName(e.target.value)}
                       placeholder="Exemplo: Mariana Vasconcelos"
@@ -486,7 +484,7 @@ Aguardo a confirmação da agenda! Obrigada.`;
                         id="client-phone"
                         required
                         maxLength={15} // Limita o tamanho máximo formatado: (11) 99999-9999
-                        value={clientPhone}
+                      value={clientPhone}
                         onChange={(e) => {
                           // Pega apenas os números digitados
                           const rawValue = e.target.value.replace(/\D/g, "");
@@ -541,9 +539,10 @@ Aguardo a confirmação da agenda! Obrigada.`;
                   <button
                     type="submit"
                     id="wizard-btn-submit-booking"
+                    disabled={submitting || loadingAvailability || !!availabilityError}
                     className="flex items-center gap-2 bg-[#dec0b3] hover:bg-[#b88f7f] text-zinc-950 font-bold uppercase text-xs tracking-wider py-3.5 px-6 rounded-sm transition-colors cursor-pointer"
                   >
-                    Reservar Momento
+                    {submitting ? "Reservando..." : "Reservar Momento"}
                     <CheckCircle2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
