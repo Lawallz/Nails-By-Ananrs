@@ -1,6 +1,6 @@
 # NAILS BY ANANRS - Studio & Intelligent Booking Platform
 
-> Plataforma digital desenvolvida para profissionais de nail design. Construída com React, TypeScript, Tailwind CSS, Supabase e integrada com Google Gemini AI para recomendação inteligente de visagismo e estilo.
+> Plataforma digital desenvolvida para profissionais de nail design. Construída com React, TypeScript, Tailwind CSS, PostgreSQL e integrada com Google Gemini AI para recomendação inteligente de visagismo e estilo.
 
 ---
 
