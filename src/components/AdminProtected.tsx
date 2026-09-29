@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Lock, KeyRound, Mail, ArrowRight, Loader2 } from "lucide-react";
+import { TurnstileWidget } from "./TurnstileWidget";
 import { supabase } from "../lib/supabase";
 
 interface AdminProtectedProps {
@@ -14,6 +15,9 @@ export const AdminProtected: React.FC<AdminProtectedProps> = ({ children }) => {
   const [emailInput, setEmailInput] = useState("admin@nailsbyananrs.com");
   const [passwordInput, setPasswordInput] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [captchaToken, setCaptchaToken] = useState("");
+  const [captchaReset, setCaptchaReset] = useState(0);
+  const siteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY || "";
 
   // Verifica se já existe uma sessão ativa no Supabase ao carregar a página
   useEffect(() => {
@@ -34,6 +38,7 @@ export const AdminProtected: React.FC<AdminProtectedProps> = ({ children }) => {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (siteKey && !captchaToken) { setErrorMessage("Conclua a verificação de segurança."); return; }
     setLoading(true);
     setErrorMessage("");
 
@@ -41,6 +46,7 @@ export const AdminProtected: React.FC<AdminProtectedProps> = ({ children }) => {
       const { data, error } = await supabase.auth.signInWithPassword({
         email: emailInput,
         password: passwordInput,
+        options: { captchaToken: captchaToken || undefined },
       });
 
       if (error) {
@@ -51,9 +57,10 @@ export const AdminProtected: React.FC<AdminProtectedProps> = ({ children }) => {
         setIsAuthenticated(true);
       }
     } catch (error: any) {
-      setErrorMessage(error.message || "E-mail ou senha incorretos.");
+      setErrorMessage(error?.status === 429 ? "Muitas tentativas. Aguarde antes de tentar novamente." : "Não foi possível entrar. Confira os dados e a verificação de segurança.");
       setPasswordInput("");
     } finally {
+      setCaptchaToken(""); setCaptchaReset(n => n + 1);
       setLoading(false);
     }
   };
@@ -130,9 +137,10 @@ export const AdminProtected: React.FC<AdminProtectedProps> = ({ children }) => {
             )}
           </div>
 
+          {siteKey && <TurnstileWidget siteKey={siteKey} action="login" resetKey={captchaReset} onVerify={setCaptchaToken} />}
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || (!!siteKey && !captchaToken)}
             className="w-full flex items-center justify-center gap-2 bg-[#dec0b3] hover:bg-[#b88f7f] text-zinc-950 py-3 rounded text-xs font-semibold tracking-wider uppercase transition-all shadow-md disabled:opacity-50"
           >
             {loading ? (

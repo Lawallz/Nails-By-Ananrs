@@ -1,8 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Sparkles, Calendar, ChevronRight, RefreshCw, AlertCircle, Copy, Check } from "lucide-react";
-import { SERVICES } from "../data";
+import { supabase } from "../lib/supabase";
+import { callServerService } from "../lib/serverServices";
+import { TurnstileWidget } from "./TurnstileWidget";
 import { Service, AIStylistRecommendation } from "../types";
-import { GoogleGenAI, Type } from "@google/genai";
+
 
 interface AIStylistViewProps {
   onBookService: (service: Service) => void;
@@ -13,6 +15,16 @@ interface StylistResponse extends AIStylistRecommendation {
 }
 
 export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) => {
+  const [services, setServices] = useState<Service[]>([]);
+  const [captchaToken, setCaptchaToken] = useState("");
+  const [captchaReset, setCaptchaReset] = useState(0);
+  const submitting = useRef(false);
+  const siteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY || "";
+  useEffect(() => {
+    let active = true;
+    void supabase.from('services').select('*').then(({data}) => { if (active) setServices(data || []); });
+    return () => { active = false; };
+  }, []);
   const [occasion, setOccasion] = useState("daily");
   const [nailShape, setNailShape] = useState("almond");
   const [nailStatus, setNailStatus] = useState("healthy");
@@ -47,56 +59,25 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) =
 
   const handleConsultation = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    setError(null);
-    setResult(null);
-
+    if (submitting.current) return;
+    if (!siteKey || !captchaToken) { setError("Conclua a verificação de segurança para continuar."); return; }
+    submitting.current = true;
+    setLoading(true); setError(null); setResult(null);
     try {
-      // Inicializa o SDK do Google GenAI direto no front-end de forma segura
-      const ai = new GoogleGenAI({ 
-        apiKey: import.meta.env.VITE_GEMINI_API_KEY 
+      const recommendation = await callServerService<AIStylistRecommendation>({
+        action: 'consult', occasion, nailShape, nailStatus, styleDescription, captchaToken
       });
-
-      const prompt = `Atue como uma Nail Designer especialista e consultora de visagismo de alto padrão para o estúdio NAILS BY ANANRS.
-      Com base nos dados abaixo, retorne um objeto JSON estrito contendo a recomendação ideal para a cliente:
-      - Ocasião: ${occasion}
-      - Formato desejado: ${nailShape}
-      - Estado de saúde das unhas: ${nailStatus}
-      - Detalhes/Preferência de estilo da cliente: ${styleDescription || "Nenhum detalhe adicional informado."}
-
-      A lista de IDs de serviços disponíveis no estúdio é: ${SERVICES.map(s => s.id).join(", ")}. Escolha o ID (recommendedServiceId) que mais se encaixa na necessidade.
-      
-      O formato JSON de resposta deve conter exatamente estas chaves:
-      - recommendedServiceId (string, ID do serviço escolhido da lista)
-      - explanation (string, explicação acolhedora e elegante do ritual escolhido)
-      - artStyleSuggestion (string, sugestão de estetismo artístico detalhado)
-      - colorPalette (array de strings contendo 3 cores no formato exato "#HEXADECIMAL Nome da Cor", ex: ["#dec0b3 Nude Clássico", "#000000 Preto Luxo", "#ffffff Branco Leite"])`;
-
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-        }
-      });
-
-      if (!response.text) {
-        throw new Error("Resposta vazia da IA.");
-      }
-
-      const parsedData = JSON.parse(response.text) as AIStylistRecommendation;
-      setResult(parsedData);
-
-    } catch (err: any) {
-      console.error("Erro no consultor de IA:", err);
-      setError("Houve um pequeno contratempo ao conectar com nosso estilista AI. Gostaria de tentar novamente?");
+      setResult(recommendation);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Consultoria indisponível no momento.");
     } finally {
-      setLoading(false);
+      submitting.current = false;
+      setLoading(false); setCaptchaToken(""); setCaptchaReset(n => n + 1);
     }
   };
 
   const recommendedService = result 
-    ? SERVICES.find(s => s.id === result.recommendedServiceId) || SERVICES[0]
+    ? services.find(s => s.id === result.recommendedServiceId) || null
     : null;
 
   const handleCopyColor = (hex: string) => {
@@ -115,7 +96,7 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) =
           Consultoria de <span className="text-gold-gradient italic font-normal">Estilo Inteligente</span>
         </h1>
         <p className="text-zinc-400 text-xs sm:text-sm">
-          Descubra a combinação ideal de comprimento estrutural, técnica reparadora e tom de esmalte ideal analisado sob os olhos da inteligência artificial regulada.
+          Receba sugestões de formato, estilo e cores conforme suas preferências. A sugestão não substitui a avaliação da profissional.
         </p>
         <div className="w-16 h-[1.5px] bg-[#dec0b3]/40 mx-auto mt-2"></div>
       </div>
@@ -239,16 +220,20 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) =
                 value={styleDescription}
                 onChange={(e) => setStyleDescription(e.target.value)}
                 rows={3}
+                maxLength={1000}
                 placeholder="Exemplo: Vestido verde esmeralda com brilho discreto, prefiro algo chique sem extravagância..."
                 className="w-full bg-[#0d0c0c] border border-zinc-900 rounded-sm p-3 text-xs text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-[#dec0b3]/60 transition-colors resize-none"
               />
             </div>
 
+            {siteKey ? <TurnstileWidget siteKey={siteKey} action="consult" resetKey={captchaReset} onVerify={setCaptchaToken} /> : (
+              <p role="status" className="text-xs text-zinc-400">A consultoria está temporariamente indisponível. Você pode escolher um serviço pelo catálogo.</p>
+            )}
             {/* Submit call */}
             <button
               type="submit"
               id="ai-stylist-btn-submit"
-              disabled={loading}
+              disabled={loading || !captchaToken || !siteKey || services.length === 0}
               className="w-full h-12 flex items-center justify-center gap-2 bg-[#dec0b3] disabled:bg-zinc-800 disabled:text-zinc-500 hover:bg-[#b88f7f] text-zinc-950 font-semibold uppercase text-xs tracking-wider rounded-sm transition-all"
             >
               {loading ? (
@@ -322,11 +307,11 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) =
                 <div className="space-y-1">
                   <span className="text-[9px] tracking-[0.2em] font-bold text-[#dec0b3] uppercase">Diagnóstico Recomendado</span>
                   <p className="text-xs text-zinc-500">
-                    Análise profunda por Gemini Studio Client-Side
+                    Sugestão de estilo com inteligência artificial
                   </p>
                 </div>
                 <div className="px-3 py-1 bg-[#dec0b3]/10 text-[#dec0b3] rounded text-[10px] font-bold tracking-wider uppercase border border-[#dec0b3]/20">
-                  Compatibilidade 99%
+                  Sugestão personalizada
                 </div>
               </div>
 

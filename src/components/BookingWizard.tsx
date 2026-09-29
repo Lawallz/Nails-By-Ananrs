@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Clock, Calendar as CalendarIcon, User, Phone, CheckCircle2, ArrowRight, ArrowLeft, Send } from "lucide-react";
-import emailjs from "@emailjs/browser";
+import { callServerService } from "../lib/serverServices";
 import { Service, Booking } from "../types";
 import { supabase } from "../lib/supabase"; // Importação do Supabase
 
@@ -25,6 +25,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
   const [existingBookings, setExistingBookings] = useState<Array<{ date: string; time: string; duration_minutes: number }>>([]);
   const [loadingAvailability, setLoadingAvailability] = useState(true);
   const [availabilityError, setAvailabilityError] = useState("");
+  const [notificationWarning, setNotificationWarning] = useState("");
   const [bookingError, setBookingError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [refreshAvailability, setRefreshAvailability] = useState(0);
@@ -173,7 +174,9 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
     submittingRef.current = true;
     setSubmitting(true);
     setBookingError("");
+    setNotificationWarning("");
     try {
+      const notificationReceipt = crypto.randomUUID();
       const newBooking: Booking = {
         id: crypto.randomUUID(), serviceId: selectedService.id,
         serviceName: selectedService.name, price: selectedService.price,
@@ -185,7 +188,8 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
         id: newBooking.id, service_id: newBooking.serviceId,
         service_name: newBooking.serviceName, price: newBooking.price,
         date: newBooking.date, time: newBooking.time,
-        client_name: newBooking.clientName, client_phone: newBooking.clientPhone
+        client_name: newBooking.clientName, client_phone: newBooking.clientPhone,
+        notification_receipt: notificationReceipt
       });
       if (error) {
         if (status === 429 || error.code === 'PT429') {
@@ -200,15 +204,8 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
         }
         return;
       }
-      const dateMeta = calendarDays.find(d => d.id === selectedDate);
-      const readableDate = dateMeta ? `${dateMeta.number} de ${dateMeta.month}` : selectedDate;
-      void emailjs.send("service_tlnez6o", "template_pbx0qys", {
-        client_name: newBooking.clientName, client_phone: clientPhone,
-        service_name: selectedService.name, booking_date: readableDate,
-        booking_time: selectedTime, booking_id: newBooking.id
-      }, "7RvvuR5w-kfUKwH-8").catch(() => {
-        // The booking is already saved; an email failure must not trigger a duplicate.
-        console.warn("Agendamento salvo, mas a notificação por e-mail não foi enviada.");
+      void callServerService({action: 'notify', bookingId: newBooking.id, receiptToken: notificationReceipt}).catch(() => {
+        setNotificationWarning("Sua reserva foi salva. Não foi possível confirmar o aviso por e-mail; confirme com a Ana pelo WhatsApp abaixo.");
       });
       setConfirmedBooking(newBooking);
       setStep(4);
@@ -248,6 +245,7 @@ Aguardo a confirmação da agenda! Obrigada.`;
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-10 text-left" id="booking-wizard-container">
       
+      {notificationWarning && step === 4 && <p role="status" className="text-sm text-amber-200">{notificationWarning}</p>}
       {bookingError && <p role="alert" className="text-sm text-rose-300">{bookingError}</p>}
       {availabilityError && step < 4 && (
         <div role="alert" className="text-sm text-rose-300">
