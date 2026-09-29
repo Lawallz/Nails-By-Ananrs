@@ -1,0 +1,2 @@
+[functions.nails-services]
+verify_jwt = true
