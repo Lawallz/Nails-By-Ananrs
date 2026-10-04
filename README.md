@@ -31,7 +31,7 @@ O projeto consiste em uma aplicacao web completa para gestao de atendimento e ex
 
 * **Front-end:** React, TypeScript, Tailwind CSS, Lucide Icons
 * **Banco de Dados & Backend:** Supabase (PostgreSQL, Realtime, RLS)
-* **Inteligencia Artificial:** Google GenAI SDK (Gemini 2.5 Flash)
+* **Inteligencia Artificial:** Google GenAI SDK (modelo configurado em `server.ts`)
 * **Hospedagem:** Vercel
 
 ---
@@ -44,21 +44,32 @@ O projeto consiste em uma aplicacao web completa para gestao de atendimento e ex
 
 ### 1. Clonar o repositorio
 ```bash
-git clone [https://github.com/Lawallz/Nails-By-Ananrs.git](https://github.com/Lawallz/Nails-By-Ananrs.git)
+git clone https://github.com/Lawallz/Nails-By-Ananrs.git
 cd Nails-By-Ananrs
 ```
 
 ### 2. Instalar dependências
-`npm install`
+`npm ci`
 
 ### 3. Configurar variaveis de ambiente
-Crie um arquivo .env.local na raiz do projeto com as chaves necessarias:
+Copie `.env.example` para `.env` na raiz e preencha os valores do seu ambiente. O servidor usa `dotenv.config()` para carregar esse arquivo; mantenha a chave `GEMINI_API_KEY` apenas no ambiente do servidor.
 
 ### 4. Rodar localmente
 `npm run dev`
 
-O projeto estara disponivel em http://localhost:1234X.
+O projeto estara disponivel em http://localhost:3000.
 
-Licenca
+## Verificação e build
+
+```bash
+npm run lint
+npm run build
+```
+
+O build gera o frontend e `dist/server.cjs`. O comando `npm start` executa esse servidor; para servir o build em produção, configure `NODE_ENV=production` no ambiente.
+
+Consulte [docs/booking-security.md](docs/booking-security.md) para os detalhes de segurança do agendamento.
+
+## Licenca
 Desenvolvido para NAILS BY ANANRS. Todos os direitos reservados.
 
