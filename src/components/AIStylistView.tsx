@@ -110,9 +110,8 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) =
     setError(null);
     setResult(null);
 
-    // Resultado local imediato: o serviço nunca depende da IA para aparecer.
-    window.setTimeout(() => {
-      try {
+    // Resultado local imediato e síncrono: a tela de resultado não depende de timer nem de API.
+    try {
         if (services.length === 0) {
           throw new Error("Nenhum serviço disponível no catálogo.");
         }
@@ -154,59 +153,6 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) =
         });
 
         setLoading(false);
-
-        // A IA trabalha em segundo plano. Se responder rápido, melhora o resultado;
-        // se falhar ou demorar, o resultado local permanece na tela.
-        void fetch("/api/consult", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            occasion,
-            nailShape,
-            nailStatus,
-            styleDescription: styleDescription.trim(),
-          }),
-        })
-          .then(async (response) => {
-            const data = await response.json().catch(() => null);
-            if (!response.ok || !data?.recommendedServiceId || data?.isFallback) {
-              return;
-            }
-
-            const aiService = services.find(
-              (item) => item.id === data.recommendedServiceId
-            );
-
-            if (
-              !aiService ||
-              typeof data.explanation !== "string" ||
-              typeof data.artStyleSuggestion !== "string" ||
-              !Array.isArray(data.colorPalette)
-            ) {
-              return;
-            }
-
-            const safePalette = data.colorPalette
-              .filter((color: unknown): color is string => typeof color === "string")
-              .map((color: string) => color.trim())
-              .filter((color: string) => /^#[a-fA-F0-9]{6}(\\s+.+)?$/.test(color))
-              .slice(0, 3);
-
-            if (safePalette.length !== 3) return;
-
-            setResult({
-              recommendedServiceId: service.id,
-              explanation: data.explanation.trim(),
-              artStyleSuggestion: data.artStyleSuggestion.trim(),
-              colorPalette: safePalette,
-              isFallback: false,
-              model: typeof data.model === "string" ? data.model : undefined,
-            });
-          })
-          .catch((error) => {
-            // A IA é complementar: erro em background não derruba o consultor.
-            console.warn("IA indisponível; mantendo recomendação local:", error);
-          });
       } catch (err) {
         console.error("Erro no consultor de estilo:", err);
         setError(
@@ -216,7 +162,6 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) =
         );
         setLoading(false);
       }
-    }, 150);
   };
 
 
@@ -393,7 +338,8 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) =
         </div>
 
         {/* Results outcome panel: Right column */}
-        <AIResultErrorBoundary>\n        <div className="lg:col-span-6 space-y-6" id="ai-stylist-results-panel">
+        <AIResultErrorBoundary>
+        <div className="lg:col-span-6 space-y-6" id="ai-stylist-results-panel">
           
           {loading && (
             <div className="rounded border border-dashed border-zinc-900 bg-[#0d0c0c]/40 p-12 text-center space-y-4 h-[500px] flex flex-col items-center justify-center animate-pulse" id="stylist-loading-panel">
