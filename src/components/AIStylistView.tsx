@@ -23,24 +23,36 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) =
   const [error, setError] = useState<string | null>(null);
   const [copiedColor, setCopiedColor] = useState<string | null>(null);
   const [services, setServices] = useState<Service[]>([]);
+  const [colorCatalog, setColorCatalog] = useState<string[]>([]);
   const [loadingServices, setLoadingServices] = useState(true);
 
   useEffect(() => {
     let active = true;
     const loadServices = async () => {
       setLoadingServices(true);
-      const { data, error } = await supabase
-        .from("services")
-        .select("*")
-        .order("name", { ascending: true });
+      const [{ data: serviceData, error: serviceError }, { data: colorData, error: colorError }] =
+        await Promise.all([
+          supabase.from("services").select("*").order("name", { ascending: true }),
+          supabase.from("ai_color_catalog").select("name,hex").order("name", { ascending: true }),
+        ]);
 
       if (active) {
-        if (error) {
-          console.error("Erro ao carregar serviços para o consultor:", error);
+        if (serviceError) {
+          console.error("Erro ao carregar serviços para o consultor:", serviceError);
           setServices([]);
         } else {
-          setServices((data || []) as Service[]);
+          setServices((serviceData || []) as Service[]);
         }
+
+        if (colorError) {
+          console.error("Erro ao carregar cores para o consultor:", colorError);
+          setColorCatalog([]);
+        } else {
+          setColorCatalog(
+            (colorData || []).map((color) => `${color.hex} ${color.name}`)
+          );
+        }
+
         setLoadingServices(false);
       }
     };
@@ -110,11 +122,14 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) =
             styleDescription.trim()
               ? `Para combinar com "${styleDescription.trim()}", aposte em uma composição elegante e equilibrada.`
               : "Aposte em tons nude, rosados ou champagne para um resultado elegante e versátil.",
-          colorPalette: [
-            "#dec0b3 Nude Rosé",
-            "#f5e6df Champagne",
-            "#6f4f46 Marrom Rosado",
-          ],
+          colorPalette:
+            colorCatalog.length >= 3
+              ? colorCatalog.slice(0, 3)
+              : [
+                  "#CFA99D Nude Rosé",
+                  "#E8D7C5 Champagne",
+                  "#7D5A52 Marrom Rosado",
+                ],
           isFallback: true,
           model: "local-recommendation",
         });
@@ -153,7 +168,7 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) =
             }
 
             setResult({
-              recommendedServiceId: aiService.id,
+              recommendedServiceId: service.id,
               explanation: data.explanation,
               artStyleSuggestion: data.artStyleSuggestion,
               colorPalette: data.colorPalette.slice(0, 3),
