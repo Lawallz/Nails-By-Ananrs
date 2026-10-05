@@ -12,6 +12,25 @@ interface StylistResponse extends AIStylistRecommendation {
   model?: string;
 }
 
+interface AIResultErrorBoundaryProps { children: React.ReactNode; }
+interface AIResultErrorBoundaryState { hasError: boolean; }
+
+class AIResultErrorBoundary extends React.Component<AIResultErrorBoundaryProps, AIResultErrorBoundaryState> {
+  state: AIResultErrorBoundaryState = { hasError: false };
+  static getDerivedStateFromError(): AIResultErrorBoundaryState { return { hasError: true }; }
+  componentDidCatch(error: unknown) { console.error("Erro ao renderizar resultado do consultor:", error); }
+  render() {
+    if (this.state.hasError) return (
+      <div className="rounded border border-red-500/20 bg-red-950/10 p-8 text-center space-y-4 text-zinc-300 min-h-[460px] flex flex-col items-center justify-center">
+        <AlertCircle className="w-10 h-10 text-red-500 mx-auto" />
+        <h4 className="text-white font-serif text-lg">Não foi possível exibir a sugestão</h4>
+        <p className="text-zinc-500 text-xs max-w-sm">Houve um problema ao montar o resultado neste dispositivo. Tente analisar novamente.</p>
+      </div>
+    );
+    return this.props.children;
+  }
+}
+
 export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) => {
   const [occasion, setOccasion] = useState("daily");
   const [nailShape, setNailShape] = useState("almond");
@@ -167,13 +186,21 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) =
               return;
             }
 
+            const safePalette = data.colorPalette
+              .filter((color: unknown): color is string => typeof color === "string")
+              .map((color: string) => color.trim())
+              .filter((color: string) => /^#[a-fA-F0-9]{6}(\\s+.+)?$/.test(color))
+              .slice(0, 3);
+
+            if (safePalette.length !== 3) return;
+
             setResult({
               recommendedServiceId: service.id,
-              explanation: data.explanation,
-              artStyleSuggestion: data.artStyleSuggestion,
-              colorPalette: data.colorPalette.slice(0, 3),
+              explanation: data.explanation.trim(),
+              artStyleSuggestion: data.artStyleSuggestion.trim(),
+              colorPalette: safePalette,
               isFallback: false,
-              model: data.model,
+              model: typeof data.model === "string" ? data.model : undefined,
             });
           })
           .catch((error) => {
@@ -366,7 +393,7 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) =
         </div>
 
         {/* Results outcome panel: Right column */}
-        <div className="lg:col-span-6 space-y-6" id="ai-stylist-results-panel">
+        <AIResultErrorBoundary>\n        <div className="lg:col-span-6 space-y-6" id="ai-stylist-results-panel">
           
           {loading && (
             <div className="rounded border border-dashed border-zinc-900 bg-[#0d0c0c]/40 p-12 text-center space-y-4 h-[500px] flex flex-col items-center justify-center animate-pulse" id="stylist-loading-panel">
@@ -522,6 +549,7 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) =
           )}
 
         </div>
+        </AIResultErrorBoundary>
 
       </div>
 
