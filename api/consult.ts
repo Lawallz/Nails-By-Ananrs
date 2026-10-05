@@ -55,8 +55,8 @@ async function generateWithRetry(
   model: string,
   prompt: string
 ) {
-  const maxAttempts = 2;
-  const timeoutMs = 12000;
+  const maxAttempts = 1;
+  const timeoutMs = 7000;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
@@ -108,7 +108,7 @@ async function generateWithRetry(
         generation,
         new Promise<never>((_, reject) =>
           setTimeout(
-            () => reject(new Error("Gemini request timeout")),
+            () => reject(Object.assign(new Error("Gemini request timeout"), { status: 408 })),
             timeoutMs
           )
         ),
@@ -318,13 +318,33 @@ REGRAS:
 
     console.error("All Gemini consultation models failed:", lastError);
 
-    return Response.json(
-      {
-        error:
-          "Nosso consultor de estilo está ocupado no momento. Aguarde alguns segundos e tente novamente. Se o problema persistir, o serviço de IA pode estar temporariamente sobrecarregado.",
-      },
-      { status: 503 }
-    );
+    // Fallback determinístico: o site continua funcional mesmo se a IA estiver indisponível.
+    const statusText = String(nailStatus).toLowerCase();
+    const occasionText = String(occasion).toLowerCase();
+    const preferredService =
+      statusText.includes("fragile")
+        ? services.find((service) => /banho de gel/i.test(service.name))
+        : occasionText.includes("wedding") || occasionText.includes("party")
+          ? services.find((service) => /decoração premium/i.test(service.name))
+          : services.find((service) => /esmaltação em gel - manicure/i.test(service.name)) ||
+            services[0];
+
+    const fallbackService = preferredService || services[0];
+
+    return Response.json({
+      recommendedServiceId: fallbackService.id,
+      explanation:
+        "Com base nas suas preferências e no catálogo atual, esta é uma opção equilibrada para o seu perfil. A análise automática de IA está temporariamente indisponível, mas a recomendação continua usando os serviços reais cadastrados no Nails By Ananrs.",
+      artStyleSuggestion:
+        "Para manter um resultado elegante, combine o formato escolhido com uma decoração delicada e acabamento uniforme.",
+      colorPalette: [
+        "#dec0b3 Nude Rosé",
+        "#f5e6df Champagne",
+        "#6f4f46 Marrom Rosado",
+      ],
+      isFallback: true,
+      model: "rules-fallback",
+    });
   } catch (error) {
     console.error("Consultation endpoint error:", error);
 
