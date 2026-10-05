@@ -1,8 +1,7 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Sparkles, Calendar, ChevronRight, RefreshCw, AlertCircle, Copy, Check } from "lucide-react";
-import { SERVICES } from "../data";
 import { Service, AIStylistRecommendation } from "../types";
-import { GoogleGenAI, Type } from "@google/genai";
+import { supabase } from "../lib/supabase";
 
 interface AIStylistViewProps {
   onBookService: (service: Service) => void;
@@ -52,48 +51,43 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) =
     setResult(null);
 
     try {
-      // Inicializa o SDK do Google GenAI direto no front-end de forma segura
-      const ai = new GoogleGenAI({ 
-        apiKey: import.meta.env.VITE_GEMINI_API_KEY 
+      const response = await fetch("/api/consult", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          occasion,
+          nailShape,
+          nailStatus,
+          styleDescription: styleDescription.trim(),
+        }),
       });
 
-      const prompt = `Atue como uma Nail Designer especialista e consultora de visagismo de alto padrão para o estúdio NAILS BY ANANRS.
-      Com base nos dados abaixo, retorne um objeto JSON estrito contendo a recomendação ideal para a cliente:
-      - Ocasião: ${occasion}
-      - Formato desejado: ${nailShape}
-      - Estado de saúde das unhas: ${nailStatus}
-      - Detalhes/Preferência de estilo da cliente: ${styleDescription || "Nenhum detalhe adicional informado."}
+      const data = await response.json().catch(() => null);
 
-      A lista de IDs de serviços disponíveis no estúdio é: ${SERVICES.map(s => s.id).join(", ")}. Escolha o ID (recommendedServiceId) que mais se encaixa na necessidade.
-      
-      O formato JSON de resposta deve conter exatamente estas chaves:
-      - recommendedServiceId (string, ID do serviço escolhido da lista)
-      - explanation (string, explicação acolhedora e elegante do ritual escolhido)
-      - artStyleSuggestion (string, sugestão de estetismo artístico detalhado)
-      - colorPalette (array de strings contendo 3 cores no formato exato "#HEXADECIMAL Nome da Cor", ex: ["#dec0b3 Nude Clássico", "#000000 Preto Luxo", "#ffffff Branco Leite"])`;
-
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-        }
-      });
-
-      if (!response.text) {
-        throw new Error("Resposta vazia da IA.");
+      if (!response.ok) {
+        throw new Error(
+          data?.error ||
+            "Não foi possível concluir a consultoria agora. Tente novamente."
+        );
       }
 
-      const parsedData = JSON.parse(response.text) as AIStylistRecommendation;
-      setResult(parsedData);
+      if (!data?.recommendedServiceId) {
+        throw new Error("A consultoria retornou uma recomendação inválida.");
+      }
 
-    } catch (err: any) {
+      setResult(data as AIStylistRecommendation);
+    } catch (err) {
       console.error("Erro no consultor de IA:", err);
-      setError("Houve um pequeno contratempo ao conectar com nosso estilista AI. Gostaria de tentar novamente?");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Houve um pequeno contratempo ao conectar com nosso estilista AI."
+      );
     } finally {
       setLoading(false);
     }
   };
+
 
   const recommendedService = result 
     ? SERVICES.find(s => s.id === result.recommendedServiceId) || SERVICES[0]
