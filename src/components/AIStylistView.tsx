@@ -79,7 +79,7 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) =
     setError(null);
     setResult(null);
 
-    // Recomendação local e instantânea: usa somente o catálogo real do Supabase.
+    // Resultado local imediato: o serviço nunca depende da IA para aparecer.
     window.setTimeout(() => {
       try {
         if (services.length === 0) {
@@ -89,29 +89,27 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) =
         const occasionText = occasion.toLowerCase();
         const statusText = nailStatus.toLowerCase();
 
-        const recommendedService =
+        const selectedService =
           statusText.includes("fragile")
             ? services.find((service) => /banho de gel/i.test(service.name))
             : occasionText === "wedding" || occasionText === "party"
               ? services.find((service) => /decoração premium/i.test(service.name))
               : services.find((service) => /esmaltação em gel - manicure/i.test(service.name)) || services[0];
 
-        const selectedService = recommendedService || services[0];
+        const service = selectedService || services[0];
 
         setResult({
-          recommendedServiceId: selectedService.id,
+          recommendedServiceId: service.id,
           explanation:
             statusText.includes("fragile")
-              ? "Como suas unhas estão frágeis, a melhor opção do catálogo é o Banho de Gel, que oferece uma proposta mais estruturada para a rotina."
+              ? "Como suas unhas estão frágeis, a melhor opção do catálogo é o Banho de Gel, oferecendo uma proposta mais estruturada para a rotina."
               : occasionText === "wedding" || occasionText === "party"
-                ? "Para uma ocasião especial, recomendamos uma opção com decoração premium para deixar o resultado mais marcante e sofisticado."
-                : "Para a sua rotina, recomendamos uma opção prática e elegante do nosso catálogo, escolhida de acordo com as suas preferências.",
+                ? "Para uma ocasião especial, recomendamos uma opção com decoração premium para um resultado mais marcante e sofisticado."
+                : "Para a sua rotina, recomendamos uma opção prática e elegante do nosso catálogo, escolhida de acordo com suas preferências.",
           artStyleSuggestion:
             styleDescription.trim()
               ? `Para combinar com "${styleDescription.trim()}", aposte em uma composição elegante e equilibrada.`
-              : nailShape === "stiletto"
-                ? "Aposte em detalhes marcantes e acabamento sofisticado para valorizar o formato stiletto."
-                : "Aposte em tons nude, rosados ou champagne para um resultado elegante e versátil.",
+              : "Aposte em tons nude, rosados ou champagne para um resultado elegante e versátil.",
           colorPalette: [
             "#dec0b3 Nude Rosé",
             "#f5e6df Champagne",
@@ -120,6 +118,53 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) =
           isFallback: true,
           model: "local-recommendation",
         });
+
+        setLoading(false);
+
+        // A IA trabalha em segundo plano. Se responder rápido, melhora o resultado;
+        // se falhar ou demorar, o resultado local permanece na tela.
+        void fetch("/api/consult", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            occasion,
+            nailShape,
+            nailStatus,
+            styleDescription: styleDescription.trim(),
+          }),
+        })
+          .then(async (response) => {
+            const data = await response.json().catch(() => null);
+            if (!response.ok || !data?.recommendedServiceId || data?.isFallback) {
+              return;
+            }
+
+            const aiService = services.find(
+              (item) => item.id === data.recommendedServiceId
+            );
+
+            if (
+              !aiService ||
+              typeof data.explanation !== "string" ||
+              typeof data.artStyleSuggestion !== "string" ||
+              !Array.isArray(data.colorPalette)
+            ) {
+              return;
+            }
+
+            setResult({
+              recommendedServiceId: aiService.id,
+              explanation: data.explanation,
+              artStyleSuggestion: data.artStyleSuggestion,
+              colorPalette: data.colorPalette.slice(0, 3),
+              isFallback: false,
+              model: data.model,
+            });
+          })
+          .catch((error) => {
+            // A IA é complementar: erro em background não derruba o consultor.
+            console.warn("IA indisponível; mantendo recomendação local:", error);
+          });
       } catch (err) {
         console.error("Erro no consultor de estilo:", err);
         setError(
@@ -127,10 +172,9 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) =
             ? err.message
             : "Não foi possível gerar a recomendação."
         );
-      } finally {
         setLoading(false);
       }
-    }, 250);
+    }, 150);
   };
 
 
