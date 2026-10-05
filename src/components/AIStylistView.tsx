@@ -1,8 +1,7 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Sparkles, Calendar, ChevronRight, RefreshCw, AlertCircle, Copy, Check } from "lucide-react";
-import { SERVICES } from "../data";
 import { Service, AIStylistRecommendation } from "../types";
-import { GoogleGenAI, Type } from "@google/genai";
+import { supabase } from "../lib/supabase";
 
 interface AIStylistViewProps {
   onBookService: (service: Service) => void;
@@ -10,6 +9,7 @@ interface AIStylistViewProps {
 
 interface StylistResponse extends AIStylistRecommendation {
   isFallback?: boolean;
+  model?: string;
 }
 
 export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) => {
@@ -22,6 +22,34 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) =
   const [result, setResult] = useState<StylistResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copiedColor, setCopiedColor] = useState<string | null>(null);
+  const [services, setServices] = useState<Service[]>([]);
+  const [loadingServices, setLoadingServices] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    const loadServices = async () => {
+      setLoadingServices(true);
+      const { data, error } = await supabase
+        .from("services")
+        .select("*")
+        .order("name", { ascending: true });
+
+      if (active) {
+        if (error) {
+          console.error("Erro ao carregar serviços para o consultor:", error);
+          setServices([]);
+        } else {
+          setServices((data || []) as Service[]);
+        }
+        setLoadingServices(false);
+      }
+    };
+
+    void loadServices();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const occasionOptions = [
     { value: "daily", label: "Diário / Casual", desc: "Aparência limpa e durável para a rotina diária." },
@@ -52,51 +80,46 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) =
     setResult(null);
 
     try {
-      // Inicializa o SDK do Google GenAI direto no front-end de forma segura
-      const ai = new GoogleGenAI({ 
-        apiKey: import.meta.env.VITE_GEMINI_API_KEY 
+      const response = await fetch("/api/consult", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          occasion,
+          nailShape,
+          nailStatus,
+          styleDescription: styleDescription.trim(),
+        }),
       });
 
-      const prompt = `Atue como uma Nail Designer especialista e consultora de visagismo de alto padrão para o estúdio NAILS BY ANANRS.
-      Com base nos dados abaixo, retorne um objeto JSON estrito contendo a recomendação ideal para a cliente:
-      - Ocasião: ${occasion}
-      - Formato desejado: ${nailShape}
-      - Estado de saúde das unhas: ${nailStatus}
-      - Detalhes/Preferência de estilo da cliente: ${styleDescription || "Nenhum detalhe adicional informado."}
+      const data = await response.json().catch(() => null);
 
-      A lista de IDs de serviços disponíveis no estúdio é: ${SERVICES.map(s => s.id).join(", ")}. Escolha o ID (recommendedServiceId) que mais se encaixa na necessidade.
-      
-      O formato JSON de resposta deve conter exatamente estas chaves:
-      - recommendedServiceId (string, ID do serviço escolhido da lista)
-      - explanation (string, explicação acolhedora e elegante do ritual escolhido)
-      - artStyleSuggestion (string, sugestão de estetismo artístico detalhado)
-      - colorPalette (array de strings contendo 3 cores no formato exato "#HEXADECIMAL Nome da Cor", ex: ["#dec0b3 Nude Clássico", "#000000 Preto Luxo", "#ffffff Branco Leite"])`;
-
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-        }
-      });
-
-      if (!response.text) {
-        throw new Error("Resposta vazia da IA.");
+      if (!response.ok) {
+        throw new Error(
+          data?.error ||
+            "Não foi possível concluir a consultoria agora. Tente novamente."
+        );
       }
 
-      const parsedData = JSON.parse(response.text) as AIStylistRecommendation;
-      setResult(parsedData);
+      if (!data?.recommendedServiceId) {
+        throw new Error("A consultoria retornou uma recomendação inválida.");
+      }
 
-    } catch (err: any) {
+      setResult(data as AIStylistRecommendation);
+    } catch (err) {
       console.error("Erro no consultor de IA:", err);
-      setError("Houve um pequeno contratempo ao conectar com nosso estilista AI. Gostaria de tentar novamente?");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Houve um pequeno contratempo ao conectar com nosso estilista AI."
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  const recommendedService = result 
-    ? SERVICES.find(s => s.id === result.recommendedServiceId) || SERVICES[0]
+
+  const recommendedService = result
+    ? services.find((service) => service.id === result.recommendedServiceId) || null
     : null;
 
   const handleCopyColor = (hex: string) => {
@@ -248,7 +271,7 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) =
             <button
               type="submit"
               id="ai-stylist-btn-submit"
-              disabled={loading}
+              disabled={loading || loadingServices || services.length === 0}
               className="w-full h-12 flex items-center justify-center gap-2 bg-[#dec0b3] disabled:bg-zinc-800 disabled:text-zinc-500 hover:bg-[#b88f7f] text-zinc-950 font-semibold uppercase text-xs tracking-wider rounded-sm transition-all"
             >
               {loading ? (
@@ -322,7 +345,7 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) =
                 <div className="space-y-1">
                   <span className="text-[9px] tracking-[0.2em] font-bold text-[#dec0b3] uppercase">Diagnóstico Recomendado</span>
                   <p className="text-xs text-zinc-500">
-                    Análise profunda por Gemini Studio Client-Side
+                    Análise personalizada por Gemini • catálogo em tempo real
                   </p>
                 </div>
                 <div className="px-3 py-1 bg-[#dec0b3]/10 text-[#dec0b3] rounded text-[10px] font-bold tracking-wider uppercase border border-[#dec0b3]/20">

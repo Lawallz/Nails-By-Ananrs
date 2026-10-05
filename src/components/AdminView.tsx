@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { supabase } from "../lib/supabase";
-import { Trash2, Plus, DollarSign, Calendar, Clock, User, Phone, Pencil, X, Loader2 } from "lucide-react";
+import { Trash2, Plus, DollarSign, Calendar, Clock, User, Phone, Pencil, X, Loader2, LogOut, CheckCircle2 } from "lucide-react";
 
 interface Booking {
   id: string;
@@ -106,6 +106,61 @@ export const AdminView: React.FC = () => {
     fetchData();
   }, []);
 
+  const [adminBookingServiceId, setAdminBookingServiceId] = useState("");
+  const [adminBookingDate, setAdminBookingDate] = useState("");
+  const [adminBookingTime, setAdminBookingTime] = useState("");
+  const [adminClientName, setAdminClientName] = useState("");
+  const [adminClientPhone, setAdminClientPhone] = useState("");
+  const [adminBookingSaving, setAdminBookingSaving] = useState(false);
+
+  const createAdminBooking = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (adminBookingSaving) return;
+
+    const service = services.find((item) => item.id === adminBookingServiceId);
+    if (!service || !adminBookingDate || !adminBookingTime || !adminClientName.trim() || !adminClientPhone.trim()) {
+      setFailure("Preencha serviço, data, horário, nome e WhatsApp da cliente.");
+      return;
+    }
+
+    setFailure("");
+    setMessage("");
+    setAdminBookingSaving(true);
+
+    try {
+      const bookingId = crypto.randomUUID();
+      const { error } = await supabase.from("bookings").insert({
+        id: bookingId,
+        service_id: service.id,
+        service_name: service.name,
+        price: service.price,
+        date: adminBookingDate,
+        time: adminBookingTime,
+        client_name: adminClientName.trim(),
+        client_phone: adminClientPhone.trim(),
+      });
+
+      if (error) {
+        if (error.code === "PT409" || error.code === "23505") {
+          throw new Error("Esse horário está ocupado. Escolha outra data ou horário.");
+        }
+        throw error;
+      }
+
+      setMessage("Agendamento criado com sucesso pelo painel.");
+      setAdminBookingServiceId("");
+      setAdminBookingDate("");
+      setAdminBookingTime("");
+      setAdminClientName("");
+      setAdminClientPhone("");
+      await fetchData();
+    } catch (error) {
+      setFailure(error instanceof Error ? error.message : "Não foi possível criar o agendamento.");
+    } finally {
+      setAdminBookingSaving(false);
+    }
+  };
+
   const handleDeleteBooking = async (id: string) => {
     if (confirm("Tem certeza que deseja remover este agendamento?")) {
       const { data, error } = await supabase.from('bookings').delete().eq('id', id).select('id');
@@ -181,6 +236,47 @@ export const AdminView: React.FC = () => {
       ) : (
         <div className="space-y-16">
           
+          {/* Criar agendamento pelo painel */}
+          <div className="space-y-6">
+            <h2 className="text-xl font-serif text-[#dec0b3] uppercase flex items-center gap-2">
+              <Plus className="w-5 h-5" /> Novo Agendamento
+            </h2>
+            <form onSubmit={createAdminBooking} className="bg-zinc-950 border border-zinc-900 p-6 rounded grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase text-zinc-400 font-semibold">Serviço</label>
+                <select required value={adminBookingServiceId} onChange={(e) => setAdminBookingServiceId(e.target.value)} className="w-full bg-zinc-900 border border-zinc-800 rounded p-2.5 text-xs text-white">
+                  <option value="">Selecione um serviço</option>
+                  {services.map((service) => <option key={service.id} value={service.id}>{service.name} — R$ {service.price}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase text-zinc-400 font-semibold">Data</label>
+                <input required type="date" value={adminBookingDate} onChange={(e) => setAdminBookingDate(e.target.value)} className="w-full bg-zinc-900 border border-zinc-800 rounded p-2.5 text-xs text-white" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase text-zinc-400 font-semibold">Horário</label>
+                <select required value={adminBookingTime} onChange={(e) => setAdminBookingTime(e.target.value)} className="w-full bg-zinc-900 border border-zinc-800 rounded p-2.5 text-xs text-white">
+                  <option value="">Selecione</option>
+                  {["09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00","19:00"].map((time) => <option key={time} value={time}>{time}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase text-zinc-400 font-semibold">Nome da cliente</label>
+                <input required maxLength={120} value={adminClientName} onChange={(e) => setAdminClientName(e.target.value)} placeholder="Nome completo" className="w-full bg-zinc-900 border border-zinc-800 rounded p-2.5 text-xs text-white" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase text-zinc-400 font-semibold">WhatsApp</label>
+                <input required maxLength={30} value={adminClientPhone} onChange={(e) => setAdminClientPhone(e.target.value)} placeholder="(11) 99999-9999" className="w-full bg-zinc-900 border border-zinc-800 rounded p-2.5 text-xs text-white" />
+              </div>
+              <div className="flex items-end">
+                <button type="submit" disabled={adminBookingSaving || services.length === 0} className="w-full flex items-center justify-center gap-2 bg-[#dec0b3] text-zinc-950 font-bold text-sm py-3 rounded disabled:opacity-50">
+                  {adminBookingSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                  {adminBookingSaving ? "Criando…" : "Criar agendamento"}
+                </button>
+              </div>
+            </form>
+          </div>
+
           {/* Agendamentos */}
           <div className="space-y-6">
             <h2 className="text-xl font-serif text-[#dec0b3] uppercase flex items-center gap-2">
