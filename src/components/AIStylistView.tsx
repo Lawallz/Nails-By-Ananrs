@@ -345,7 +345,7 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) =
                 <div className="space-y-1">
                   <span className="text-[9px] tracking-[0.2em] font-bold text-[#dec0b3] uppercase">Diagnóstico Recomendado</span>
                   <p className="text-xs text-zinc-500">
-                    Análise profunda por Gemini Studio Client-Side
+                    Análise personalizada por Gemini • catálogo em tempo real
                   </p>
                 </div>
                 <div className="px-3 py-1 bg-[#dec0b3]/10 text-[#dec0b3] rounded text-[10px] font-bold tracking-wider uppercase border border-[#dec0b3]/20">
