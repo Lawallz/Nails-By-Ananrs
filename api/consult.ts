@@ -118,7 +118,24 @@ export default async function handler(req: Request) {
     return Response.json({ error: "Método não permitido." }, { status: 405 });
   }
 
-  const { occasion, nailShape, styleDescription, nailStatus } = await req.json();
+  let body: {
+    occasion?: unknown;
+    nailShape?: unknown;
+    styleDescription?: unknown;
+    nailStatus?: unknown;
+  };
+
+  try {
+    body = await req.json();
+  } catch (error) {
+    console.error("Erro ao interpretar body de /api/consult:", error);
+    return Response.json(
+      { error: "Dados da consultoria inválidos. Recarregue a página e tente novamente." },
+      { status: 400 }
+    );
+  }
+
+  const { occasion, nailShape, styleDescription, nailStatus } = body;
 
   if (!occasion || !nailShape || !nailStatus) {
     return Response.json(
@@ -296,6 +313,9 @@ REGRAS:
     );
   } catch (error) {
     console.error("Consultation endpoint error:", error);
+
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("Consultation endpoint error detail:", message);
 
     return Response.json(
       {
