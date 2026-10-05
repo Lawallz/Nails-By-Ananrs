@@ -73,15 +73,17 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) =
     { value: "average", label: "Normais com quebras leves", desc: "Quebram principalmente nas quinas e cantos." },
   ];
 
-  const handleConsultation = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleConsultation = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     setLoading(true);
     setError(null);
     setResult(null);
 
+    let timeoutId: number | undefined;
+
     try {
       const controller = new AbortController();
-      const timeoutId = window.setTimeout(() => controller.abort(), 25000);
+      timeoutId = window.setTimeout(() => controller.abort(), 18000);
 
       const response = await fetch("/api/consult", {
         method: "POST",
@@ -96,7 +98,6 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) =
       });
 
       const data = await response.json().catch(() => null);
-      window.clearTimeout(timeoutId);
 
       if (!response.ok) {
         throw new Error(
@@ -125,6 +126,9 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) =
         );
       }
     } finally {
+      if (timeoutId !== undefined) {
+        window.clearTimeout(timeoutId);
+      }
       setLoading(false);
     }
   };
@@ -339,7 +343,7 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) =
               <AlertCircle className="w-10 h-10 text-red-500 mx-auto" />
               <p className="text-sm font-medium">{error}</p>
               <button 
-                onClick={handleConsultation} 
+                onClick={() => void handleConsultation()} 
                 className="inline-flex items-center gap-2 text-xs bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-[#dec0b3]/30 px-4 py-2 rounded text-[#dec0b3] transition-colors"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
@@ -357,7 +361,9 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) =
                 <div className="space-y-1">
                   <span className="text-[9px] tracking-[0.2em] font-bold text-[#dec0b3] uppercase">Diagnóstico Recomendado</span>
                   <p className="text-xs text-zinc-500">
-                    Análise personalizada por Gemini • catálogo em tempo real
+                    {result.isFallback
+                      ? "Recomendação de contingência • catálogo em tempo real"
+                      : "Análise personalizada por Gemini • catálogo em tempo real"}
                   </p>
                 </div>
                 <div className="px-3 py-1 bg-[#dec0b3]/10 text-[#dec0b3] rounded text-[10px] font-bold tracking-wider uppercase border border-[#dec0b3]/20">
