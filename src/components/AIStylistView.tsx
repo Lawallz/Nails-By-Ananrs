@@ -80,9 +80,13 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) =
     setResult(null);
 
     try {
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 25000);
+
       const response = await fetch("/api/consult", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({
           occasion,
           nailShape,
@@ -92,6 +96,7 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) =
       });
 
       const data = await response.json().catch(() => null);
+      window.clearTimeout(timeoutId);
 
       if (!response.ok) {
         throw new Error(
@@ -107,11 +112,18 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) =
       setResult(data as AIStylistRecommendation);
     } catch (err) {
       console.error("Erro no consultor de IA:", err);
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Houve um pequeno contratempo ao conectar com nosso estilista AI."
-      );
+
+      if (err instanceof DOMException && err.name === "AbortError") {
+        setError(
+          "A consultoria demorou mais que o esperado. Tente novamente em alguns segundos."
+        );
+      } else {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Houve um pequeno contratempo ao conectar com nosso estilista AI."
+        );
+      }
     } finally {
       setLoading(false);
     }
