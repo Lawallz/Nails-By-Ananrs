@@ -187,6 +187,7 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) =
             if (!response.ok) return null;
             const data = (await response.json()) as Partial<StylistResponse>;
             if (
+              data.isFallback ||
               typeof data.explanation !== "string" ||
               typeof data.artStyleSuggestion !== "string" ||
               !Array.isArray(data.colorPalette) ||
