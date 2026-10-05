@@ -9,6 +9,7 @@ interface AIStylistViewProps {
 
 interface StylistResponse extends AIStylistRecommendation {
   isFallback?: boolean;
+  model?: string;
 }
 
 export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) => {
@@ -21,6 +22,34 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) =
   const [result, setResult] = useState<StylistResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copiedColor, setCopiedColor] = useState<string | null>(null);
+  const [services, setServices] = useState<Service[]>([]);
+  const [loadingServices, setLoadingServices] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    const loadServices = async () => {
+      setLoadingServices(true);
+      const { data, error } = await supabase
+        .from("services")
+        .select("*")
+        .order("name", { ascending: true });
+
+      if (active) {
+        if (error) {
+          console.error("Erro ao carregar serviços para o consultor:", error);
+          setServices([]);
+        } else {
+          setServices((data || []) as Service[]);
+        }
+        setLoadingServices(false);
+      }
+    };
+
+    void loadServices();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const occasionOptions = [
     { value: "daily", label: "Diário / Casual", desc: "Aparência limpa e durável para a rotina diária." },
@@ -89,8 +118,8 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) =
   };
 
 
-  const recommendedService = result 
-    ? SERVICES.find(s => s.id === result.recommendedServiceId) || SERVICES[0]
+  const recommendedService = result
+    ? services.find((service) => service.id === result.recommendedServiceId) || null
     : null;
 
   const handleCopyColor = (hex: string) => {
@@ -242,7 +271,7 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) =
             <button
               type="submit"
               id="ai-stylist-btn-submit"
-              disabled={loading}
+              disabled={loading || loadingServices || services.length === 0}
               className="w-full h-12 flex items-center justify-center gap-2 bg-[#dec0b3] disabled:bg-zinc-800 disabled:text-zinc-500 hover:bg-[#b88f7f] text-zinc-950 font-semibold uppercase text-xs tracking-wider rounded-sm transition-all"
             >
               {loading ? (
