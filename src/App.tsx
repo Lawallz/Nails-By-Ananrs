@@ -7,7 +7,7 @@ import { AIStylistView } from "./components/AIStylistView";
 import { BookingWizard } from "./components/BookingWizard";
 import { AdminView } from "./components/AdminView";
 import { AdminProtected } from "./components/AdminProtected"; // <-- Componente de proteção com senha
-import { Sparkles, Calendar, Heart, ShieldAlert, Award, FileText, CheckCircle2, Phone, Smile, Lock } from "lucide-react";
+import { Sparkles, Calendar, Heart, ShieldAlert, Award, FileText, CheckCircle2, Phone, Smile } from "lucide-react";
 import { Service, Booking } from "./types";
 
 export default function App() {
@@ -16,8 +16,8 @@ export default function App() {
   const [pastBookings, setPastBookings] = useState<Booking[]>([]);
   const [showHistory, setShowHistory] = useState(false);
 
-  // Verifica se o caminho atual da URL é /admin
-  const isAdminRoute = window.location.pathname === "/admin";
+  // Rota administrativa não fica exposta no menu público.
+  const isAdminRoute = window.location.pathname === "/gestao-ananrs";
 
   const loadPastBookings = () => {
     try {
@@ -48,7 +48,7 @@ export default function App() {
     }
   };
 
-  // Se a rota for /admin, renderiza o painel protegido por senha
+  // Se a rota administrativa for acessada, renderiza o painel protegido pelo Supabase Auth
   if (isAdminRoute) {
     return (
       <AdminProtected>
@@ -202,15 +202,6 @@ export default function App() {
           <p className="max-w-lg mx-auto leading-relaxed">
             Desenvolvido com sofisticação. Nossa biossegurança de autoclaves protege o seu estilo de vida enquanto restauramos e adornamos a beleza de suas mãos.
           </p>
-          {/* Link discreto para a Ana acessar o painel administrativo */}
-          <div className="pt-2">
-            <a 
-              href="/admin" 
-              className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-zinc-700 hover:text-[#dec0b3] transition-colors"
-            >
-              <Lock className="w-3 h-3" /> Acesso Administrativo (Ana)
-            </a>
-          </div>
         </div>
       </footer>
 
