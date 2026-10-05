@@ -1,4 +1,3 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { GoogleGenAI, Type } from "@google/genai";
 import { createClient } from "@supabase/supabase-js";
 
@@ -6,17 +5,8 @@ const consultationRateLimit = new Map<string, number[]>();
 const CONSULTATION_WINDOW_MS = 10 * 60 * 1000;
 const CONSULTATION_MAX_REQUESTS = 8;
 
-function getClientIp(req: VercelRequest) {
-  const forwarded = req.headers["x-forwarded-for"];
-  if (typeof forwarded === "string" && forwarded.length > 0) {
-    return forwarded.split(",")[0].trim();
-  }
-
-  if (Array.isArray(forwarded) && forwarded.length > 0) {
-    return forwarded[0];
-  }
-
-  return req.socket?.remoteAddress || "unknown";
+function getClientIp(req: Request) {
+  return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
 }
 
 function allowConsultation(ip: string) {
@@ -123,27 +113,30 @@ async function generateWithRetry(
   throw new Error("Gemini indisponível após as tentativas.");
 }
 
-export default async function handler(
-  req: VercelRequest,
-  res: VercelResponse
-) {
+export default async function handler(req: Request) {
   if (req.method !== "POST") {
-    return res.status(405).json({ error: "Método não permitido." });
+    return Response.json({ error: "Método não permitido." }, { status: 405 });
   }
 
-  const { occasion, nailShape, styleDescription, nailStatus } = req.body || {};
+  const { occasion, nailShape, styleDescription, nailStatus } = await req.json();
 
   if (!occasion || !nailShape || !nailStatus) {
-    return res.status(400).json({ error: "Campos obrigatórios ausentes." });
+    return Response.json(
+      { error: "Campos obrigatórios ausentes." },
+      { status: 400 }
+    );
   }
 
   const clientIp = getClientIp(req);
 
   if (!allowConsultation(clientIp)) {
-    return res.status(429).json({
-      error:
-        "Limite temporário do consultor atingido. Aguarde alguns minutos e tente novamente.",
-    });
+    return Response.json(
+      {
+        error:
+          "Limite temporário do consultor atingido. Aguarde alguns minutos e tente novamente.",
+      },
+      { status: 429 }
+    );
   }
 
   const apiKey = process.env.GEMINI_API_KEY;
@@ -158,20 +151,26 @@ export default async function handler(
 
   if (!apiKey) {
     console.error("GEMINI_API_KEY não configurada no servidor.");
-    return res.status(503).json({
-      error:
-        "O consultor de estilo está temporariamente indisponível. A chave da IA não está configurada no servidor.",
-    });
+    return Response.json(
+      {
+        error:
+          "O consultor de estilo está temporariamente indisponível. A chave da IA não está configurada no servidor.",
+      },
+      { status: 503 }
+    );
   }
 
   if (!supabaseUrl || !supabaseKey) {
     console.error(
       "Credenciais públicas do Supabase não configuradas no servidor."
     );
-    return res.status(503).json({
-      error:
-        "Não foi possível carregar o catálogo de serviços no momento. Tente novamente em instantes.",
-    });
+    return Response.json(
+      {
+        error:
+          "Não foi possível carregar o catálogo de serviços no momento. Tente novamente em instantes.",
+      },
+      { status: 503 }
+    );
   }
 
   try {
@@ -189,17 +188,23 @@ export default async function handler(
 
     if (servicesError) {
       console.error("Erro ao carregar catálogo para o consultor:", servicesError);
-      return res.status(503).json({
-        error:
-          "Não foi possível carregar os serviços cadastrados. Tente novamente em instantes.",
-      });
+      return Response.json(
+        {
+          error:
+            "Não foi possível carregar os serviços cadastrados. Tente novamente em instantes.",
+        },
+        { status: 503 }
+      );
     }
 
     if (!services || services.length === 0) {
-      return res.status(409).json({
-        error:
-          "Ainda não existem serviços cadastrados no painel. Cadastre pelo menos um serviço antes de usar o consultor.",
-      });
+      return Response.json(
+        {
+          error:
+            "Ainda não existem serviços cadastrados no painel. Cadastre pelo menos um serviço antes de usar o consultor.",
+        },
+        { status: 409 }
+      );
     }
 
     const catalog = services.map((service) => ({
@@ -262,7 +267,7 @@ REGRAS:
           );
         }
 
-        return res.status(200).json({
+        return Response.json({
           recommendedServiceId: recommendedService.id,
           explanation: parsedData.explanation,
           artStyleSuggestion: parsedData.artStyleSuggestion,
@@ -282,15 +287,22 @@ REGRAS:
 
     console.error("All Gemini consultation models failed:", lastError);
 
-    return res.status(503).json({
-      error:
-        "Nosso consultor de estilo está ocupado no momento. Aguarde alguns segundos e tente novamente. Se o problema persistir, o serviço de IA pode estar temporariamente sobrecarregado.",
-    });
+    return Response.json(
+      {
+        error:
+          "Nosso consultor de estilo está ocupado no momento. Aguarde alguns segundos e tente novamente. Se o problema persistir, o serviço de IA pode estar temporariamente sobrecarregado.",
+      },
+      { status: 503 }
+    );
   } catch (error) {
     console.error("Consultation endpoint error:", error);
 
-    return res.status(500).json({
-      error: "Não foi possível concluir a consultoria agora. Tente novamente em instantes.",
-    });
+    return Response.json(
+      {
+        error:
+          "Não foi possível concluir a consultoria agora. Tente novamente em instantes.",
+      },
+      { status: 500 }
+    );
   }
 }
