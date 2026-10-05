@@ -65,7 +65,7 @@ async function generateWithRetry(
         contents: prompt,
         config: {
           systemInstruction:
-            "Você é uma especialista em Nail Estética de Luxo e consultora de imagem do Nails By Ananrs. Responda em português do Brasil, com tom refinado, acolhedor e profissional. Use exclusivamente os serviços presentes no catálogo fornecido.",
+            "Você é uma especialista em Nail Estética de Luxo e consultora de imagem do Nails By Ananrs. Responda em português do Brasil, com tom refinado, acolhedor e profissional. O serviço já foi definido pelo sistema; não o altere. Use exclusivamente as cores do catálogo autorizado.",
           responseMimeType: "application/json",
           thinkingConfig: {
             thinkingLevel: "low",
@@ -73,14 +73,10 @@ async function generateWithRetry(
           responseSchema: {
             type: Type.OBJECT,
             properties: {
-              recommendedServiceId: {
-                type: Type.STRING,
-                description: "ID exato de um serviço do catálogo fornecido.",
-              },
               explanation: {
                 type: Type.STRING,
                 description:
-                  "Explicação elegante e objetiva justificando a recomendação.",
+                  "Explicação elegante e objetiva justificando o estilo.",
               },
               artStyleSuggestion: {
                 type: Type.STRING,
@@ -91,15 +87,10 @@ async function generateWithRetry(
                 type: Type.ARRAY,
                 items: { type: Type.STRING },
                 description:
-                  "Exatamente 3 cores no formato '#HEX Nome da Cor'.",
+                  "Exatamente 3 cores, copiadas exatamente do catálogo autorizado.",
               },
             },
-            required: [
-              "recommendedServiceId",
-              "explanation",
-              "artStyleSuggestion",
-              "colorPalette",
-            ],
+            required: ["explanation", "artStyleSuggestion", "colorPalette"],
           },
         },
       });
@@ -238,29 +229,52 @@ export default async function handler(req: Request) {
       );
     }
 
-    const catalog = services.map((service) => ({
-      id: service.id,
-      name: service.name,
-      price: service.price,
-      duration: service.duration,
-    }));
+    const statusText = String(nailStatus).toLowerCase();
+    const occasionText = String(occasion).toLowerCase();
 
-    const prompt = `Analise o perfil da cliente e recomende UM serviço do catálogo real do Nails By Ananrs.
+    const selectedService =
+      statusText.includes("fragile")
+        ? services.find((service) => /banho de gel/i.test(service.name))
+        : occasionText === "wedding" || occasionText === "party"
+          ? services.find((service) => /decoração premium/i.test(service.name))
+          : services.find((service) => /esmaltação em gel - manicure/i.test(service.name)) || services[0];
+
+    const service = selectedService || services[0];
+
+    const { data: colors, error: colorsError } = await supabase
+      .from("ai_color_catalog")
+      .select("name,hex")
+      .order("name", { ascending: true });
+
+    if (colorsError || !colors || colors.length < 3) {
+      console.error("Erro ao carregar catálogo de cores:", colorsError);
+      return Response.json({ error: "Não foi possível carregar a paleta do salão." }, { status: 503 });
+    }
+
+    const colorCatalog = colors.map((color) => `${color.hex} ${color.name}`).join("\n");
+
+    const prompt = `Crie apenas o enriquecimento criativo da consultoria. O serviço já foi escolhido pelo sistema e não pode ser alterado.
 
 PERFIL:
 - Ocasião: ${String(occasion).slice(0, 80)}
 - Formato/comprimento: ${String(nailShape).slice(0, 80)}
-- Saúde/status das unhas: ${String(nailStatus).slice(0, 80)}
+- Saúde/status: ${String(nailStatus).slice(0, 80)}
 - Preferência de estilo: ${String(styleDescription || "Não informado").slice(0, 600)}
 
-CATÁLOGO REAL DO SUPABASE:
-${JSON.stringify(catalog)}
+SERVIÇO DEFINIDO PELO SISTEMA:
+- Nome: ${service.name}
+
+CATÁLOGO AUTORIZADO DE CORES:
+${colorCatalog}
 
 REGRAS:
-1. recommendedServiceId deve ser exatamente um id presente no catálogo.
-2. Não invente serviços, preços, durações ou IDs.
-3. A recomendação deve considerar principalmente o estado das unhas e a ocasião.
-4. Retorne exatamente o JSON definido pelo schema.`;
+1. Não escolha outro serviço.
+2. Retorne exatamente 3 cores.
+3. Cada cor deve ser copiada EXATAMENTE do catálogo autorizado, incluindo HEX e nome.
+4. Não invente HEX, nomes ou tons.
+5. Escolha cores que combinem entre si e com o perfil da cliente.
+6. Se houver uma cor de roupa ou preferência informada, crie uma combinação coerente com ela.
+7. Retorne exatamente o JSON definido pelo schema.`;
 
     const ai = new GoogleGenAI({ apiKey });
 
@@ -277,32 +291,37 @@ REGRAS:
         }
 
         const parsedData = JSON.parse(response.text.trim()) as {
-          recommendedServiceId?: string;
           explanation?: string;
           artStyleSuggestion?: string;
           colorPalette?: string[];
         };
 
-        const recommendedService = services.find(
-          (service) => service.id === parsedData.recommendedServiceId
+        const allowedColors = new Map(
+          colors.map((color) => [
+            `${color.hex.toLowerCase()} ${color.name.toLowerCase()}`,
+            `${color.hex} ${color.name}`,
+          ])
         );
 
+        const normalizedPalette = Array.isArray(parsedData.colorPalette)
+          ? parsedData.colorPalette
+              .map((color) => allowedColors.get(String(color).trim().toLowerCase()))
+              .filter((color): color is string => Boolean(color))
+          : [];
+
         if (
-          !recommendedService ||
-          !parsedData.explanation ||
-          !parsedData.artStyleSuggestion ||
-          !Array.isArray(parsedData.colorPalette)
+          typeof parsedData.explanation !== "string" ||
+          typeof parsedData.artStyleSuggestion !== "string" ||
+          normalizedPalette.length !== 3
         ) {
-          throw new Error(
-            "Resposta do Gemini não corresponde ao catálogo atual."
-          );
+          throw new Error("Resposta do Gemini contém cores fora do catálogo autorizado.");
         }
 
         return Response.json({
-          recommendedServiceId: recommendedService.id,
+          recommendedServiceId: service.id,
           explanation: parsedData.explanation,
           artStyleSuggestion: parsedData.artStyleSuggestion,
-          colorPalette: parsedData.colorPalette.slice(0, 3),
+          colorPalette: normalizedPalette,
           isFallback: model !== models[0],
           model,
         });
