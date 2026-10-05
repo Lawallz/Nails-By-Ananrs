@@ -56,7 +56,7 @@ async function generateWithRetry(
   prompt: string
 ) {
   const maxAttempts = 1;
-  const timeoutMs = 7000;
+  const timeoutMs = 2500;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
@@ -265,7 +265,7 @@ REGRAS:
     const ai = new GoogleGenAI({ apiKey });
 
     // Modelos estáveis, priorizando menor latência.
-    const models = ["gemini-3.6-flash", "gemini-3.7-flash"];
+    const models = ["gemini-3.6-flash"];
     let lastError: unknown = null;
 
     for (const model of models) {
