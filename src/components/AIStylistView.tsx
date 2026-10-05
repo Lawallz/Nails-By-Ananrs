@@ -128,6 +128,35 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) =
 
         const service = selectedService || services[0];
 
+        const catalogByName = (name: string) =>
+          colorCatalog.find((color) => color.toLowerCase().includes(name.toLowerCase()));
+
+        const preferredStyle = styleDescription.toLowerCase();
+        const paletteCandidates =
+          preferredStyle.includes("azul") || preferredStyle.includes("blue")
+            ? [catalogByName("Azul Serenity"), catalogByName("Azul Marinho"), catalogByName("Branco Leitoso")]
+            : preferredStyle.includes("verde")
+              ? [catalogByName("Verde Esmeralda"), catalogByName("Verde Sálvia"), catalogByName("Champagne")]
+              : preferredStyle.includes("rosa")
+                ? [catalogByName("Rosa Antigo"), catalogByName("Rosa Bebê"), catalogByName("Champagne")]
+                : preferredStyle.includes("vermelho") || preferredStyle.includes("vinho") || preferredStyle.includes("bordô")
+                  ? [catalogByName("Vinho"), catalogByName("Vermelho Rubi"), catalogByName("Champagne")]
+                  : occasionText === "wedding"
+                    ? [catalogByName("Branco Leitoso"), catalogByName("Champagne"), catalogByName("Rosa Chá")]
+                    : occasionText === "party"
+                      ? [catalogByName("Vinho"), catalogByName("Dourado"), catalogByName("Preto")]
+                      : statusText.includes("fragile")
+                        ? [catalogByName("Nude Rosé"), catalogByName("Rosa Chá"), catalogByName("Champagne")]
+                        : [catalogByName("Nude Rosé"), catalogByName("Champagne"), catalogByName("Marrom Rosado")];
+
+        const fallbackPalette = paletteCandidates.filter(Boolean) as string[];
+        const safePalette =
+          fallbackPalette.length === 3
+            ? fallbackPalette
+            : colorCatalog.length >= 3
+              ? colorCatalog.slice(0, 3)
+              : ["#CFA99D Nude Rosé", "#E8D7C5 Champagne", "#7D5A52 Marrom Rosado"];
+
         setResult({
           recommendedServiceId: service.id,
           explanation:
@@ -140,19 +169,55 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) =
             styleDescription.trim()
               ? `Para combinar com "${styleDescription.trim()}", aposte em uma composição elegante e equilibrada.`
               : "Aposte em tons nude, rosados ou champagne para um resultado elegante e versátil.",
-          colorPalette:
-            colorCatalog.length >= 3
-              ? colorCatalog.slice(0, 3)
-              : [
-                  "#CFA99D Nude Rosé",
-                  "#E8D7C5 Champagne",
-                  "#7D5A52 Marrom Rosado",
-                ],
+          colorPalette: safePalette,
           isFallback: true,
           model: "local-recommendation",
         });
 
         setLoading(false);
+
+        // A IA só enriquece o resultado depois que a recomendação local já está na tela.
+        // Se falhar ou demorar, a experiência local permanece intacta.
+        void fetch("/api/consult", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ occasion, nailShape, nailStatus, styleDescription }),
+        })
+          .then(async (response) => {
+            if (!response.ok) return null;
+            const data = (await response.json()) as Partial<StylistResponse>;
+            if (
+              typeof data.explanation !== "string" ||
+              typeof data.artStyleSuggestion !== "string" ||
+              !Array.isArray(data.colorPalette) ||
+              data.colorPalette.length !== 3
+            ) {
+              return null;
+            }
+            const allowed = new Set(colorCatalog.map((color) => color.toLowerCase()));
+            const palette = data.colorPalette.filter(
+              (color): color is string =>
+                typeof color === "string" && allowed.has(color.toLowerCase())
+            );
+            if (palette.length !== 3) return null;
+
+            setResult((current) =>
+              current
+                ? {
+                    ...current,
+                    explanation: data.explanation as string,
+                    artStyleSuggestion: data.artStyleSuggestion as string,
+                    colorPalette: palette,
+                    isFallback: Boolean(data.isFallback),
+                    model: data.model,
+                  }
+                : current
+            );
+            return null;
+          })
+          .catch((aiError) => {
+            console.warn("Enriquecimento de IA indisponível; mantendo recomendação local.", aiError);
+          });
       } catch (err) {
         console.error("Erro no consultor de estilo:", err);
         setError(
