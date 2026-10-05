@@ -73,64 +73,64 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({ onBookService }) =
     { value: "average", label: "Normais com quebras leves", desc: "Quebram principalmente nas quinas e cantos." },
   ];
 
-  const handleConsultation = async (e?: React.FormEvent) => {
+  const handleConsultation = (e?: React.FormEvent) => {
     e?.preventDefault();
     setLoading(true);
     setError(null);
     setResult(null);
 
-    let timeoutId: number | undefined;
+    // Recomendação local e instantânea: usa somente o catálogo real do Supabase.
+    window.setTimeout(() => {
+      try {
+        if (services.length === 0) {
+          throw new Error("Nenhum serviço disponível no catálogo.");
+        }
 
-    try {
-      const controller = new AbortController();
-      timeoutId = window.setTimeout(() => controller.abort(), 18000);
+        const occasionText = occasion.toLowerCase();
+        const statusText = nailStatus.toLowerCase();
 
-      const response = await fetch("/api/consult", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        signal: controller.signal,
-        body: JSON.stringify({
-          occasion,
-          nailShape,
-          nailStatus,
-          styleDescription: styleDescription.trim(),
-        }),
-      });
+        const recommendedService =
+          statusText.includes("fragile")
+            ? services.find((service) => /banho de gel/i.test(service.name))
+            : occasionText === "wedding" || occasionText === "party"
+              ? services.find((service) => /decoração premium/i.test(service.name))
+              : services.find((service) => /esmaltação em gel - manicure/i.test(service.name)) || services[0];
 
-      const data = await response.json().catch(() => null);
+        const selectedService = recommendedService || services[0];
 
-      if (!response.ok) {
-        throw new Error(
-          data?.error ||
-            "Não foi possível concluir a consultoria agora. Tente novamente."
-        );
-      }
-
-      if (!data?.recommendedServiceId) {
-        throw new Error("A consultoria retornou uma recomendação inválida.");
-      }
-
-      setResult(data as AIStylistRecommendation);
-    } catch (err) {
-      console.error("Erro no consultor de IA:", err);
-
-      if (err instanceof DOMException && err.name === "AbortError") {
-        setError(
-          "A consultoria demorou mais que o esperado. Tente novamente em alguns segundos."
-        );
-      } else {
+        setResult({
+          recommendedServiceId: selectedService.id,
+          explanation:
+            statusText.includes("fragile")
+              ? "Como suas unhas estão frágeis, a melhor opção do catálogo é o Banho de Gel, que oferece uma proposta mais estruturada para a rotina."
+              : occasionText === "wedding" || occasionText === "party"
+                ? "Para uma ocasião especial, recomendamos uma opção com decoração premium para deixar o resultado mais marcante e sofisticado."
+                : "Para a sua rotina, recomendamos uma opção prática e elegante do nosso catálogo, escolhida de acordo com as suas preferências.",
+          artStyleSuggestion:
+            styleDescription.trim()
+              ? `Para combinar com "${styleDescription.trim()}", aposte em uma composição elegante e equilibrada.`
+              : nailShape === "stiletto"
+                ? "Aposte em detalhes marcantes e acabamento sofisticado para valorizar o formato stiletto."
+                : "Aposte em tons nude, rosados ou champagne para um resultado elegante e versátil.",
+          colorPalette: [
+            "#dec0b3 Nude Rosé",
+            "#f5e6df Champagne",
+            "#6f4f46 Marrom Rosado",
+          ],
+          isFallback: true,
+          model: "local-recommendation",
+        });
+      } catch (err) {
+        console.error("Erro no consultor de estilo:", err);
         setError(
           err instanceof Error
             ? err.message
-            : "Houve um pequeno contratempo ao conectar com nosso estilista AI."
+            : "Não foi possível gerar a recomendação."
         );
+      } finally {
+        setLoading(false);
       }
-    } finally {
-      if (timeoutId !== undefined) {
-        window.clearTimeout(timeoutId);
-      }
-      setLoading(false);
-    }
+    }, 250);
   };
 
 
