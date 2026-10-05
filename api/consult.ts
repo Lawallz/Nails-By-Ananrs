@@ -55,17 +55,21 @@ async function generateWithRetry(
   model: string,
   prompt: string
 ) {
-  const maxAttempts = 3;
+  const maxAttempts = 2;
+  const timeoutMs = 12000;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
-      return await ai.models.generateContent({
+      const generation = ai.models.generateContent({
         model,
         contents: prompt,
         config: {
           systemInstruction:
             "Você é uma especialista em Nail Estética de Luxo e consultora de imagem do Nails By Ananrs. Responda em português do Brasil, com tom refinado, acolhedor e profissional. Use exclusivamente os serviços presentes no catálogo fornecido.",
           responseMimeType: "application/json",
+          thinkingConfig: {
+            thinkingLevel: "low",
+          },
           responseSchema: {
             type: Type.OBJECT,
             properties: {
@@ -99,12 +103,22 @@ async function generateWithRetry(
           },
         },
       });
+
+      return await Promise.race([
+        generation,
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error("Gemini request timeout")),
+            timeoutMs
+          )
+        ),
+      ]);
     } catch (error) {
       if (!isRetryableGeminiError(error) || attempt === maxAttempts) {
         throw error;
       }
 
-      const baseDelay = 1000 * 2 ** (attempt - 1);
+      const baseDelay = 700 * 2 ** (attempt - 1);
       const jitter = Math.floor(Math.random() * 250);
       await sleep(baseDelay + jitter);
     }
@@ -250,8 +264,8 @@ REGRAS:
 
     const ai = new GoogleGenAI({ apiKey });
 
-    // Ambos são modelos estáveis disponíveis na API Gemini.
-    const models = ["gemini-3.8-flash", "gemini-3.6-flash"];
+    // Modelos estáveis, priorizando menor latência.
+    const models = ["gemini-3.6-flash", "gemini-3.7-flash"];
     let lastError: unknown = null;
 
     for (const model of models) {
