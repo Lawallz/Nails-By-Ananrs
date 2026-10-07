@@ -1,3 +1,4 @@
+import { durationMinutes, isSunday, minutes, overlaps, studioToday } from "../lib/schedule";
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Clock, Calendar as CalendarIcon, User, Phone, CheckCircle2, ArrowRight, ArrowLeft, Send } from "lucide-react";
 import emailjs from "@emailjs/browser";
@@ -32,6 +33,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
   
   // Lista dinâmica de serviços vinda do Supabase (Admin)
   const [services, setServices] = useState<Service[]>([]);
+  const [blockedSlots, setBlockedSlots] = useState<Array<{ date: string; start_time: string; end_time: string }>>([]);
   const [loadingServices, setLoadingServices] = useState(true);
 
   // Busca os serviços direto do Supabase
@@ -61,7 +63,9 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
           .select('date,time,duration_minutes')
           .gte('date', new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }));
         if (error) throw error;
-        if (active) setExistingBookings(data || []);
+        const { data: blocks, error: blockError } = await supabase.from('schedule_blocks').select('date,start_time,end_time').gte('date', studioToday());
+        if (blockError) throw blockError;
+        if (active) { setExistingBookings(data || []); setBlockedSlots(blocks || []); }
       } catch {
         if (active) {
           setExistingBookings([]);
@@ -90,14 +94,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
     return hrs * 60 + mins;
   };
 
-  const parseDuration = (durationStr: string): number => {
-    if (!durationStr) return 60;
-    if (durationStr.includes(":")) {
-      return timeToMinutes(durationStr);
-    }
-    const matched = durationStr.match(/\d+/);
-    return matched ? parseInt(matched[0], 10) : 60;
-  };
+  const parseDuration = durationMinutes;
 
   const validatedTimeslots = useMemo(() => {
     if (!selectedDate || !selectedService) return [];
@@ -120,17 +117,22 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
 
       return {
         time,
-        disabled: isOccupied || loadingAvailability || !!availabilityError
+        disabled: isSunday(selectedDate) || isOccupied || blockedSlots.some(b => b.date === selectedDate && overlaps(currentStart, serviceDuration, minutes(b.start_time), minutes(b.end_time) - minutes(b.start_time))) || loadingAvailability || !!availabilityError
       };
     });
-  }, [selectedDate, selectedService, existingBookings, loadingAvailability, availabilityError]);
+  }, [selectedDate, selectedService, existingBookings, blockedSlots, loadingAvailability, availabilityError]);
+
+  useEffect(() => {
+    if (step === 2 && !loadingAvailability && !availabilityError && selectedTime && validatedTimeslots.some(slot => slot.time === selectedTime && slot.disabled)) setSelectedTime("");
+  }, [validatedTimeslots, selectedTime, step, loadingAvailability, availabilityError]);
 
   const calendarDays = useMemo(() => {
     const list = [];
-    const dateObj = new Date();
+    const dateObj = new Date(`${studioToday()}T12:00:00`);
     for (let i = 1; i <= 12; i++) {
-      const future = new Date();
+      const future = new Date(dateObj);
       future.setDate(dateObj.getDate() + i);
+      if (future.getDay() === 0) continue;
       
       const dayName = future.toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "");
       const dayNum = future.getDate();
@@ -294,6 +296,8 @@ Aguardo a confirmação da agenda! Obrigada.`;
                   <div 
                     key={serv.id}
                     id={`wizard-service-row-${serv.id}`}
+                    role="button" tabIndex={0} aria-pressed={selectedService?.id === serv.id}
+                    onKeyDown={e => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); setSelectedService(serv); } }}
                     onClick={() => setSelectedService(serv)}
                     className={`p-4 rounded border cursor-pointer flex items-center justify-between gap-4 transition-all ${
                       selectedService?.id === serv.id
@@ -306,7 +310,8 @@ Aguardo a confirmação da agenda! Obrigada.`;
                         <img src={serv.image} alt={serv.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                       </div>
                       <div className="text-left min-w-0">
-                        <h4 className="font-serif text-white text-sm font-semibold truncate">{serv.name}</h4>
+                        <h4 className="font-serif text-white text-sm font-semibold break-words">{serv.name}</h4>
+                        <details className="mt-2 text-xs text-zinc-400" onClick={e => e.stopPropagation()}><summary className="cursor-pointer text-[#dec0b3]">Ver detalhes do serviço</summary><p className="mt-2 break-words">{serv.name}. {serv.description || 'Procedimento personalizado conforme avaliação no estúdio.'} Duração prevista: {serv.duration}.</p></details>
                         <p className="text-zinc-500 text-[10px] mt-0.5">• {serv.duration}</p>
                       </div>
                     </div>
@@ -343,7 +348,7 @@ Aguardo a confirmação da agenda! Obrigada.`;
             <div className="flex items-center justify-between p-4 rounded bg-zinc-950 border border-zinc-900" id="wizard-procedure-brief">
               <div className="text-left space-y-0.5 min-w-0">
                 <span className="text-[9px] text-zinc-500 uppercase tracking-widest font-semibold block">Procedimento Escolhido</span>
-                <h4 className="font-serif text-white text-md font-semibold truncate">{selectedService.name}</h4>
+                <h4 className="font-serif text-white text-md font-semibold break-words">{selectedService.name}</h4>
               </div>
               <div className="text-right flex items-center gap-4">
                 <div className="text-zinc-400 text-xs hidden sm:block">
@@ -558,7 +563,7 @@ Aguardo a confirmação da agenda! Obrigada.`;
                     <img src={selectedService.image} alt={selectedService.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <h4 className="font-serif text-white text-sm font-semibold truncate leading-snug">{selectedService.name}</h4>
+                    <h4 className="font-serif text-white text-sm font-semibold break-words leading-snug">{selectedService.name}</h4>
                     <span className="text-[10px] text-[#dec0b3] uppercase tracking-wider font-semibold block mt-1">R$ {selectedService.price}</span>
                   </div>
                 </div>
@@ -621,7 +626,7 @@ Aguardo a confirmação da agenda! Obrigada.`;
               <div className="grid grid-cols-2 gap-y-4 text-xs font-sans">
                 <div>
                   <span className="text-zinc-500 block text-[10px] uppercase">Procedimento</span>
-                  <span className="text-zinc-200 font-semibold block mt-0.5 truncate">{confirmedBooking.serviceName}</span>
+                  <span className="text-zinc-200 font-semibold block mt-0.5 break-words">{confirmedBooking.serviceName}</span>
                 </div>
                 <div>
                   <span className="text-zinc-500 block text-[10px] uppercase">Preço Estimado</span>

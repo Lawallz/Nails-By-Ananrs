@@ -167,7 +167,7 @@ export default function App() {
                     <div className="flex justify-between items-start border-b border-zinc-950 pb-2">
                       <div className="text-left">
                         <span className="text-[9px] text-zinc-500 tracking-wider block uppercase">Procedimento Agendado</span>
-                        <h5 className="font-serif text-white font-medium text-sm truncate max-w-[200px]">{b.serviceName}</h5>
+                        <h5 className="font-serif text-white font-medium text-sm break-words">{b.serviceName}</h5>
                       </div>
                       <span className="font-mono text-[10px] bg-zinc-900 border border-zinc-850 px-2 py-0.5 rounded text-[#e0c56e] font-bold">
                         #{b.id}
@@ -199,6 +199,8 @@ export default function App() {
             <span>•</span>
             <span className="text-[#e2c56f]">Artistry in Every Detail.</span>
           </div>
+          <address className="not-italic text-zinc-300">Rua Julio de Mesquita, 658, São Bernardo do Campo</address>
+          <p className="text-zinc-400">Atendimento de segunda a sábado, com agendamento. Domingo: fechado.</p>
           <p className="max-w-lg mx-auto leading-relaxed">
             Desenvolvido com sofisticação. Nossa biossegurança de autoclaves protege o seu estilo de vida enquanto restauramos e adornamos a beleza de suas mãos.
           </p>

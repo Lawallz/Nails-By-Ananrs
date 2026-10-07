@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, ThinkingLevel } from "@google/genai";
 import { createClient } from "@supabase/supabase-js";
 
 const consultationRateLimit = new Map<string, number[]>();
@@ -68,7 +68,7 @@ async function generateWithRetry(
             "Você é uma especialista em Nail Estética de Luxo e consultora de imagem do Nails By Ananrs. Responda em português do Brasil, com tom refinado, acolhedor e profissional. O serviço já foi definido pelo sistema; não o altere. Use exclusivamente as cores do catálogo autorizado.",
           responseMimeType: "application/json",
           thinkingConfig: {
-            thinkingLevel: "low",
+            thinkingLevel: ThinkingLevel.LOW,
           },
           responseSchema: {
             type: Type.OBJECT,
@@ -338,8 +338,7 @@ REGRAS:
     console.error("All Gemini consultation models failed:", lastError);
 
     // Fallback determinístico: o site continua funcional mesmo se a IA estiver indisponível.
-    const statusText = String(nailStatus).toLowerCase();
-    const occasionText = String(occasion).toLowerCase();
+
     const preferredService =
       statusText.includes("fragile")
         ? services.find((service) => /banho de gel/i.test(service.name))
@@ -379,3 +378,4 @@ REGRAS:
     );
   }
 }
+

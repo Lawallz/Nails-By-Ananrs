@@ -1,16 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
+import { AdminAgenda } from "./AdminAgenda";
 import { supabase } from "../lib/supabase";
 import { Trash2, Plus, DollarSign, Calendar, Clock, User, Phone, Pencil, X, Loader2, LogOut, CheckCircle2 } from "lucide-react";
-
-interface Booking {
-  id: string;
-  serviceName: string;
-  price: number;
-  date: string;
-  time: string;
-  clientName: string;
-  clientPhone: string;
-}
 
 interface Service {
   id: string;
@@ -18,10 +9,10 @@ interface Service {
   price: number;
   duration: string;
   image: string;
+  description?: string;
 }
 
 export const AdminView: React.FC = () => {
-  const [bookings, setBookings] = useState<Booking[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -29,6 +20,7 @@ export const AdminView: React.FC = () => {
   const [newPrice, setNewPrice] = useState("");
   const [newDuration, setNewDuration] = useState("");
   const [newImage, setNewImage] = useState("");
+  const [newDescription, setNewDescription] = useState("");
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -48,13 +40,13 @@ export const AdminView: React.FC = () => {
   }, [imageFile]);
 
   const resetForm = () => {
-    setEditingId(null); setNewName(""); setNewPrice("");
+    setEditingId(null); setNewDescription(""); setNewName(""); setNewPrice("");
     setNewDuration(""); setNewImage(""); setImageFile(null);
     if (fileRef.current) fileRef.current.value = "";
   };
 
   const editService = (service: Service) => {
-    setEditingId(service.id); setNewName(service.name);
+    setNewDescription(service.description || ""); setEditingId(service.id); setNewName(service.name);
     setNewPrice(String(service.price)); setNewDuration(service.duration);
     setNewImage(service.image); setImageFile(null); setFailure(""); setMessage("");
     if (fileRef.current) fileRef.current.value = "";
@@ -76,24 +68,6 @@ export const AdminView: React.FC = () => {
   const fetchData = async () => {
     setLoading(true);
     
-    // Busca agendamentos do Supabase
-    const { data: bookingsData, error: bError } = await supabase.from('bookings').select('*');
-    if (bError) setFailure("Não foi possível carregar os agendamentos: " + bError.message);
-    
-    if (bookingsData) {
-      // Mapeia os dados garantindo compatibilidade com diferentes nomes de colunas no banco
-      const formattedBookings = bookingsData.map((b: any) => ({
-        id: b.id,
-        serviceName: b.serviceName || b.service_name || "Procedimento",
-        price: b.price || 0,
-        date: b.date || "",
-        time: b.time || "",
-        clientName: b.clientName || b.client_name || b.name || "Cliente não informada",
-        clientPhone: b.clientPhone || b.client_phone || b.phone || "Não informado"
-      }));
-      setBookings(formattedBookings);
-    }
-
     // Busca serviços
     const { data: servicesData, error: sError } = await supabase.from('services').select('*');
     if (sError) setFailure("Não foi possível carregar os serviços: " + sError.message);
@@ -105,69 +79,6 @@ export const AdminView: React.FC = () => {
   useEffect(() => {
     fetchData();
   }, []);
-
-  const [adminBookingServiceId, setAdminBookingServiceId] = useState("");
-  const [adminBookingDate, setAdminBookingDate] = useState("");
-  const [adminBookingTime, setAdminBookingTime] = useState("");
-  const [adminClientName, setAdminClientName] = useState("");
-  const [adminClientPhone, setAdminClientPhone] = useState("");
-  const [adminBookingSaving, setAdminBookingSaving] = useState(false);
-
-  const createAdminBooking = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (adminBookingSaving) return;
-
-    const service = services.find((item) => item.id === adminBookingServiceId);
-    if (!service || !adminBookingDate || !adminBookingTime || !adminClientName.trim() || !adminClientPhone.trim()) {
-      setFailure("Preencha serviço, data, horário, nome e WhatsApp da cliente.");
-      return;
-    }
-
-    setFailure("");
-    setMessage("");
-    setAdminBookingSaving(true);
-
-    try {
-      const bookingId = crypto.randomUUID();
-      const { error } = await supabase.from("bookings").insert({
-        id: bookingId,
-        service_id: service.id,
-        service_name: service.name,
-        price: service.price,
-        date: adminBookingDate,
-        time: adminBookingTime,
-        client_name: adminClientName.trim(),
-        client_phone: adminClientPhone.trim(),
-      });
-
-      if (error) {
-        if (error.code === "PT409" || error.code === "23505") {
-          throw new Error("Esse horário está ocupado. Escolha outra data ou horário.");
-        }
-        throw error;
-      }
-
-      setMessage("Agendamento criado com sucesso pelo painel.");
-      setAdminBookingServiceId("");
-      setAdminBookingDate("");
-      setAdminBookingTime("");
-      setAdminClientName("");
-      setAdminClientPhone("");
-      await fetchData();
-    } catch (error) {
-      setFailure(error instanceof Error ? error.message : "Não foi possível criar o agendamento.");
-    } finally {
-      setAdminBookingSaving(false);
-    }
-  };
-
-  const handleDeleteBooking = async (id: string) => {
-    if (confirm("Tem certeza que deseja remover este agendamento?")) {
-      const { data, error } = await supabase.from('bookings').delete().eq('id', id).select('id');
-      if (error || !data?.length) { setFailure(error?.message || 'Não foi possível excluir o agendamento.'); return; }
-      setBookings(current => current.filter(booking => booking.id !== id));
-    }
-  };
 
   const handleAddService = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -191,7 +102,7 @@ export const AdminView: React.FC = () => {
         uploadedPath = path;
         image = supabase.storage.from("services-images").getPublicUrl(path).data.publicUrl;
       }
-      const fields = { name: newName.trim(), price, duration: newDuration.trim(), image };
+      const fields = { description: newDescription.trim(), name: newName.trim(), price, duration: newDuration.trim(), image };
       const query = editingId
         ? supabase.from("services").update(fields).eq("id", editingId)
         : supabase.from("services").insert({ id: crypto.randomUUID(), ...fields });
@@ -236,91 +147,7 @@ export const AdminView: React.FC = () => {
       ) : (
         <div className="space-y-16">
           
-          {/* Criar agendamento pelo painel */}
-          <div className="space-y-6">
-            <h2 className="text-xl font-serif text-[#dec0b3] uppercase flex items-center gap-2">
-              <Plus className="w-5 h-5" /> Novo Agendamento
-            </h2>
-            <form onSubmit={createAdminBooking} className="bg-zinc-950 border border-zinc-900 p-6 rounded grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div className="space-y-1">
-                <label className="text-[10px] uppercase text-zinc-400 font-semibold">Serviço</label>
-                <select required value={adminBookingServiceId} onChange={(e) => setAdminBookingServiceId(e.target.value)} className="w-full bg-zinc-900 border border-zinc-800 rounded p-2.5 text-xs text-white">
-                  <option value="">Selecione um serviço</option>
-                  {services.map((service) => <option key={service.id} value={service.id}>{service.name} — R$ {service.price}</option>)}
-                </select>
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] uppercase text-zinc-400 font-semibold">Data</label>
-                <input required type="date" value={adminBookingDate} onChange={(e) => setAdminBookingDate(e.target.value)} className="w-full bg-zinc-900 border border-zinc-800 rounded p-2.5 text-xs text-white" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] uppercase text-zinc-400 font-semibold">Horário</label>
-                <select required value={adminBookingTime} onChange={(e) => setAdminBookingTime(e.target.value)} className="w-full bg-zinc-900 border border-zinc-800 rounded p-2.5 text-xs text-white">
-                  <option value="">Selecione</option>
-                  {["09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00","19:00"].map((time) => <option key={time} value={time}>{time}</option>)}
-                </select>
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] uppercase text-zinc-400 font-semibold">Nome da cliente</label>
-                <input required maxLength={120} value={adminClientName} onChange={(e) => setAdminClientName(e.target.value)} placeholder="Nome completo" className="w-full bg-zinc-900 border border-zinc-800 rounded p-2.5 text-xs text-white" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] uppercase text-zinc-400 font-semibold">WhatsApp</label>
-                <input required maxLength={30} value={adminClientPhone} onChange={(e) => setAdminClientPhone(e.target.value)} placeholder="(11) 99999-9999" className="w-full bg-zinc-900 border border-zinc-800 rounded p-2.5 text-xs text-white" />
-              </div>
-              <div className="flex items-end">
-                <button type="submit" disabled={adminBookingSaving || services.length === 0} className="w-full flex items-center justify-center gap-2 bg-[#dec0b3] text-zinc-950 font-bold text-sm py-3 rounded disabled:opacity-50">
-                  {adminBookingSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                  {adminBookingSaving ? "Criando…" : "Criar agendamento"}
-                </button>
-              </div>
-            </form>
-          </div>
-
-          {/* Agendamentos */}
-          <div className="space-y-6">
-            <h2 className="text-xl font-serif text-[#dec0b3] uppercase flex items-center gap-2">
-              <Calendar className="w-5 h-5" /> Agendamentos Confirmados ({bookings.length})
-            </h2>
-
-            {bookings.length === 0 ? (
-              <div className="p-6 bg-zinc-950 border border-zinc-900 rounded text-center text-zinc-500 text-xs">
-                Nenhum agendamento registrado até o momento.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {bookings.map((b) => (
-                  <div key={b.id} className="bg-zinc-950 border border-zinc-900 p-5 rounded relative space-y-3 shadow-xl">
-                    <div className="flex justify-between items-start border-b border-zinc-900 pb-2">
-                      <div>
-                        <span className="text-[10px] font-mono text-[#dec0b3] font-bold">#{b.id}</span>
-                        <h4 className="font-serif text-sm font-semibold text-white mt-0.5">{b.serviceName}</h4>
-                      </div>
-                      <button 
-                        onClick={() => handleDeleteBooking(b.id)}
-                        className="text-zinc-600 hover:text-red-400 transition-colors p-1"
-                        title="Excluir agendamento"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-
-                    <div className="space-y-1.5 text-xs text-zinc-300">
-                      <p className="flex items-center gap-2"><User className="w-3.5 h-3.5 text-[#dec0b3]" /> <strong className="text-white">{b.clientName}</strong></p>
-                      <p className="flex items-center gap-2"><Phone className="w-3.5 h-3.5 text-[#dec0b3]" /> {b.clientPhone}</p>
-                      <p className="flex items-center gap-2"><Calendar className="w-3.5 h-3.5 text-[#dec0b3]" /> {b.date}</p>
-                      <p className="flex items-center gap-2"><Clock className="w-3.5 h-3.5 text-[#dec0b3]" /> <span className="text-[#dec0b3] font-bold font-mono">{b.time}</span></p>
-                    </div>
-
-                    <div className="pt-2 border-t border-zinc-900 flex justify-between items-center text-xs">
-                      <span className="text-zinc-500 uppercase text-[10px]">Valor:</span>
-                      <span className="font-serif font-bold text-[#dec0b3]">R$ {b.price}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <AdminAgenda services={services} />
 
           {/* Serviços */}
           <div className="space-y-6 pt-8 border-t border-zinc-800">
@@ -346,6 +173,7 @@ export const AdminView: React.FC = () => {
                   />
                 </div>
 
+                <label className="block text-xs text-zinc-400">Descrição breve<textarea value={newDescription} maxLength={1000} onChange={e => setNewDescription(e.target.value)} className="w-full mt-1 bg-zinc-900 border border-zinc-800 rounded p-2.5 text-white" placeholder="Explique o procedimento para a cliente" /></label>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <label className="text-[10px] uppercase text-zinc-400 font-semibold">Preço (R$):</label>
