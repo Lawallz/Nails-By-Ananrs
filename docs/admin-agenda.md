@@ -30,3 +30,17 @@ O botão **Baixar relatório CSV** exporta dados agregados para Excel, com separ
 A consulta usa as permissões administrativas existentes e pagina os resultados para evitar cortes pelo limite de linhas da API. Mudanças na agenda atualizam o dashboard. Erros de consulta são exibidos, sem transformar falhas em indicadores zerados.
 
 Teste dos cálculos e da exportação: `node --import tsx --test tests/booking-analytics.test.ts`.
+
+## Status, histórico e financeiro
+
+- Status: agendado, confirmado, concluído, cancelado e falta. A atualização é manual; abrir o WhatsApp não comprova envio nem altera o status.
+- Cancelar exige motivo e libera o horário sem apagar o atendimento. Falta também libera o horário. Reativação está sujeita à data permitida e à disponibilidade. Não é possível marcar conclusão ou falta em uma data futura.
+- A exclusão administrativa foi retirada. Atendimentos encerrados podem originar uma **Nova manutenção**, com serviço e contato preenchidos e nova data a escolher. Pagamentos e status não são copiados.
+- **Histórico da cliente** consulta todos os meses pelo WhatsApp normalizado, com paginação. Números compartilhados podem reunir nomes diferentes; confira a cliente. Observações pertencem ao atendimento e permanecem no histórico.
+- **Agenda semanal** mostra os intervalos ocupados conforme a duração reservada, bloqueios e folgas, inclusive na virada de mês. Clique em um horário livre para preencher uma nova reserva. A disponibilidade final depende da duração e é validada no banco.
+- **Pagamentos** registra sinal, pagamento e estorno, com data, forma e observação. Saldo = preço registrado menos recebimentos líquidos. Não aceita recebimento acima do saldo nem estorno acima do recebido. Cancelamento não implica devolução automática.
+- Lançamentos financeiros são preservados. Para corrigir um recebimento, registre estorno e depois o recebimento correto. Estornos exigem motivo e data igual ou posterior ao último lançamento.
+- Relatórios de agenda usam a data do atendimento; cancelamentos e faltas aparecem nas taxas mas saem da previsão e das pendências. Financeiro usa a data real informada no lançamento, podendo aparecer em um mês diferente do atendimento.
+- Agendamentos anteriores continuam **agendados**, sem pagamentos registrados. A administradora deve preencher os status e recebimentos históricos que quiser contabilizar. Não foram inferidos pagamentos ou conclusões.
+
+Testes de banco: `tests/booking-operations.sql` e `tests/admin-agenda.sql`, ambos com rollback das fixtures. As novas tabelas financeiras usam RLS exclusiva da administradora; o site público não tem acesso ao histórico, às observações ou aos pagamentos.

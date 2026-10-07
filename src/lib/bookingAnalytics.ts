@@ -1,3 +1,4 @@
+import { isInactive, outstanding, paymentMethods } from './bookingOperations';
 export type AnalyticsBooking = {
   id: string;
   service_id: string;
@@ -5,6 +6,8 @@ export type AnalyticsBooking = {
   date: string;
   time: string;
   price: number | string;
+  status?: string;
+  paid_amount?: number | string;
 };
 export const money = (value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 export function shiftMonth(month: string, offset: number) {
@@ -29,9 +32,17 @@ export function summarizeBookings(rows: AnalyticsBooking[], month: string) {
   const hours = new Map<string, number>();
   let value = 0;
   let count = 0;
+  let total = 0, completed = 0, cancelled = 0, noShow = 0, pending = 0, receivedForBookings = 0;
   for (const booking of rows) {
     const day = daily.find(d => d.date === booking.date);
     if (!day) continue;
+    total++;
+    receivedForBookings += Number(booking.paid_amount || 0);
+    if (booking.status === 'cancelled') cancelled++;
+    if (booking.status === 'no_show') noShow++;
+    if (booking.status === 'completed') completed++;
+    if (isInactive(booking.status || '')) continue;
+    pending += outstanding(booking);
     const price = Number(booking.price);
     const amount = Number.isFinite(price) ? price : 0;
     count++; value += amount; day.count++; day.value += amount;
@@ -45,6 +56,9 @@ export function summarizeBookings(rows: AnalyticsBooking[], month: string) {
   }
   weekdays.forEach(d => { d.average = d.occurrences ? d.count / d.occurrences : 0; });
   return {
+    total, completed, cancelled, noShow, pending, receivedForBookings,
+    cancellationRate: total ? cancelled / total * 100 : 0,
+    noShowRate: total ? noShow / total * 100 : 0,
     count, value, ticket: count ? value / count : 0,
     activeDays: daily.filter(d => d.count).length,
     services: [...services.values()].sort((a, b) => b.count - a.count || b.value - a.value || a.label.localeCompare(b.label, 'pt-BR')),
@@ -59,16 +73,28 @@ export function csvCell(value: string | number) {
   if (/^[\s]*[=+@-]/.test(text) || /^[\t\r\n]/.test(text)) text = `'${text}`;
   return `"${text.replace(/"/g, '""')}"`;
 }
-export function analyticsCsv(summary: BookingSummary, previous: BookingSummary, month: string) {
+export function analyticsCsv(summary: BookingSummary, previous: BookingSummary, month: string, cash = summarizeCash([], month), previousCash = summarizeCash([], shiftMonth(month, -1))) {
   const amount = (n: number) => n.toFixed(2).replace('.', ',');
   const rows: Array<Array<string | number>> = [
     ['Relatório de agendamentos', monthLabel(month)],
-    ['Base', 'Data do atendimento; inclui agendamentos futuros. Valores não representam pagamentos. Registros excluídos não entram no relatório.'],
+    ['Base', 'Agenda pela data do atendimento, excluindo cancelamentos e faltas dos valores previstos. Recebimentos e estornos pela data do lançamento. Somente valores registrados; não integra banco ou operadora.'],
     ['Indicador', 'Mês selecionado', monthLabel(shiftMonth(month, -1))],
-    ['Agendamentos', summary.count, previous.count],
+    ['Registros totais', summary.total, previous.total],
+    ['Agendamentos válidos (inclui concluídos)', summary.count, previous.count],
+    ['Concluídos', summary.completed, previous.completed],
+    ['Cancelamentos', summary.cancelled, previous.cancelled],
+    ['Faltas', summary.noShow, previous.noShow],
+    ['Taxa de cancelamento sobre registros (%)', amount(summary.cancellationRate), amount(previous.cancellationRate)],
+    ['Taxa de falta sobre registros (%)', amount(summary.noShowRate), amount(previous.noShowRate)],
+    ['Saldo pendente dos atendimentos (R$)', amount(summary.pending), amount(previous.pending)],
+    ['Recebimentos registrados no mês (R$)', amount(cash.received), amount(previousCash.received)],
+    ['Estornos registrados no mês (R$)', amount(cash.refunded), amount(previousCash.refunded)],
+    ['Recebido líquido registrado no mês (R$)', amount(cash.net), amount(previousCash.net)],
     ['Valor agendado (R$)', amount(summary.value), amount(previous.value)],
     ['Ticket médio agendado (R$)', amount(summary.ticket), amount(previous.ticket)],
     ['Dias com agendamentos', summary.activeDays, previous.activeDays], [],
+    ['Forma de pagamento', 'Recebimentos (R$)', 'Estornos (R$)', 'Líquido (R$)'],
+    ...cash.methods.map(m => [m.label, amount(m.received), amount(m.refunded), amount(m.received - m.refunded)]), [],
     ['Serviço', 'Agendamentos', 'Participação (%)', 'Valor agendado (R$)'],
     ...summary.services.map(s => [s.label, s.count, amount(summary.count ? s.count / summary.count * 100 : 0), amount(s.value)]), [],
     ['Dia da semana', 'Agendamentos', 'Ocorrências no mês', 'Média por ocorrência'],
@@ -77,4 +103,22 @@ export function analyticsCsv(summary: BookingSummary, previous: BookingSummary, 
     ['Data', 'Agendamentos', 'Valor agendado (R$)'], ...summary.daily.map(d => [d.date, d.count, amount(d.value)]),
   ];
   return '\uFEFF' + rows.map(row => row.map(csvCell).join(';')).join('\r\n');
+}
+
+export type CashEntry = { id: string; amount: number | string; kind: string; method: string; paid_on: string };
+export function summarizeCash(rows: CashEntry[], month: string) {
+  let receivedCents = 0, refundedCents = 0, depositsCents = 0, count = 0;
+  const methods = new Map<string, { label: string; received: number; refunded: number }>();
+  for (const row of rows) {
+    if (!row.paid_on.startsWith(`${month}-`)) continue;
+    const cents = Math.round(Number(row.amount) * 100);
+    if (!Number.isFinite(cents)) continue;
+    count++;
+    const m = methods.get(row.method) || { label: paymentMethods[row.method as keyof typeof paymentMethods] || row.method, received: 0, refunded: 0 };
+    if (row.kind === 'refund') { refundedCents += cents; m.refunded += cents; }
+    else { receivedCents += cents; m.received += cents; if (row.kind === 'deposit') depositsCents += cents; }
+    methods.set(row.method, m);
+  }
+  return { count, received: receivedCents / 100, refunded: refundedCents / 100, net: (receivedCents - refundedCents) / 100, deposits: depositsCents / 100,
+    methods: [...methods.values()].map(m => ({...m,received:m.received/100,refunded:m.refunded/100})) };
 }

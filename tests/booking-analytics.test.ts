@@ -47,3 +47,29 @@ test('CSV preserves Portuguese values and neutralizes formula injection', () => 
   assert.ok(csv.includes('"Gel atualizado";"2";"66,67";"250,50"'));
   assert.ok(!csv.includes('client_phone'));
 });
+
+test('status reports retain cancellations and exclude their expected values', async () => {
+  const { outstanding, weekDates, phoneKey } = await import('../src/lib/bookingOperations');
+  const { summarizeCash } = await import('../src/lib/bookingAnalytics');
+  const fixtures = [
+    {...rows[0], status:'completed', paid_amount:100.5},
+    {...rows[1], status:'cancelled', paid_amount:50},
+    {...rows[2], status:'no_show', paid_amount:0},
+    {...rows[0], id:'new', status:'confirmed', paid_amount:30},
+  ];
+  const result=summarizeBookings(fixtures,'2026-10');
+  assert.equal(result.total,4); assert.equal(result.count,2); assert.equal(result.completed,1);
+  assert.equal(result.cancelled,1); assert.equal(result.noShow,1); assert.equal(result.pending,70.5);
+  assert.equal(result.cancellationRate,25); assert.equal(result.value,201);
+  assert.equal(outstanding({...rows[1],status:'cancelled'}),0);
+  assert.deepEqual(weekDates('2026-11-01'),['2026-10-26','2026-10-27','2026-10-28','2026-10-29','2026-10-30','2026-10-31','2026-11-01']);
+  assert.equal(phoneKey('+55 (11) 99999-9999'),'11999999999');
+  const cash=summarizeCash([
+    {id:'1',amount:30,kind:'deposit',method:'pix',paid_on:'2026-10-01'},
+    {id:'2',amount:70,kind:'payment',method:'credit',paid_on:'2026-10-02'},
+    {id:'3',amount:20,kind:'refund',method:'pix',paid_on:'2026-10-03'},
+    {id:'4',amount:500,kind:'payment',method:'pix',paid_on:'2026-09-30'},
+  ],'2026-10');
+  assert.equal(cash.received,100); assert.equal(cash.refunded,20); assert.equal(cash.net,80); assert.equal(cash.deposits,30);
+  assert.equal(cash.methods.find(m=>m.label==='Pix')?.refunded,20);
+});

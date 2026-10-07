@@ -55,7 +55,7 @@ begin
   exception when sqlstate 'PT409' then null; end;
   delete from public.schedule_blocks where date=d;
   update public.bookings set date=d,time='09:00' where id='__agenda_test_booking';
-  delete from public.bookings where id in ('__agenda_test_booking','__agenda_test_booking2');
+  update public.bookings set status='cancelled', cancellation_reason='Teste de liberação' where id in ('__agenda_test_booking','__agenda_test_booking2');
   insert into public.schedule_blocks(date,start_time,end_time) values(d,'00:00','24:00');
   perform set_config('agenda.test_day',d,true);
 end $$;
