@@ -17,3 +17,16 @@
 `tests/admin-agenda.sql`: integração transacional com rollback, cobrindo edição, troca de serviço, sincronização dos horários, conflitos, domingos, bloqueios parciais/integral e permissões. Não envia mensagens às clientes.
 
 A migração usa a mesma administradora já autorizada nas políticas existentes. Disponibilidade pública contém somente datas e horários; nomes e telefones continuam restritos.
+
+
+## Dashboard e relatórios
+
+O dashboard possui filtro mensal independente do calendário da agenda. Apresenta total de agendamentos, valor agendado, ticket médio e dias com agendamentos, com referência ao mês anterior inteiro. Inclui ranking de serviços, distribuição por dia da semana e horário de início, tabela completa de serviços e detalhamento diário.
+
+Os indicadores usam a data do atendimento e o preço registrado no agendamento, incluindo datas futuras. Não são indicadores de faturamento recebido, atendimentos concluídos ou ocupação da agenda. Exclusões removem os registros do relatório. Meses ainda em andamento podem mudar; a comparação não é ajustada por dias decorridos.
+
+O botão **Baixar relatório CSV** exporta dados agregados para Excel, com separador ponto e vírgula, valores decimais em português e codificação UTF-8. Inclui a média de agendamentos por ocorrência de cada dia da semana no mês. Não exporta nomes nem telefones de clientes. Células de texto são protegidas contra interpretação como fórmulas.
+
+A consulta usa as permissões administrativas existentes e pagina os resultados para evitar cortes pelo limite de linhas da API. Mudanças na agenda atualizam o dashboard. Erros de consulta são exibidos, sem transformar falhas em indicadores zerados.
+
+Teste dos cálculos e da exportação: `node --import tsx --test tests/booking-analytics.test.ts`.

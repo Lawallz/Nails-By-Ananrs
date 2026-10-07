@@ -1,3 +1,4 @@
+import { AdminDashboard } from './AdminDashboard';
 import React, { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { confirmationUrl, dateLabel, durationMinutes, isSunday, minutes, overlaps, studioToday, times } from '../lib/schedule';
@@ -29,6 +30,7 @@ export function AdminAgenda({ services }: { services: Service[] }) {
   const [blockStart, setBlockStart] = useState('09:00');
   const [blockEnd, setBlockEnd] = useState('20:00');
   const [showAll, setShowAll] = useState(false);
+  const [revision, setRevision] = useState(0);
   const load = async () => {
     const request = ++requestId.current;
     const targetMonth = monthRef.current;
@@ -41,7 +43,7 @@ export function AdminAgenda({ services }: { services: Service[] }) {
       ]);
       if (b.error || x.error || s.error) throw b.error || x.error || s.error;
       if (request !== requestId.current) return;
-      setBookings(b.data || []); setBlocks(x.data || []); setSlots(s.data || []);
+      setBookings(b.data || []); setBlocks(x.data || []); setSlots(s.data || []); setRevision(n => n + 1);
     } catch (e) { if (request === requestId.current) { setBookings([]); setBlocks([]); setSlots([]); setError((e as Error).message || 'Não foi possível carregar a agenda.'); } }
     finally { if (request === requestId.current) setLoading(false); }
   };
@@ -83,13 +85,10 @@ export function AdminAgenda({ services }: { services: Service[] }) {
   const first = new Date(`${month}-01T12:00:00`).getDay();
   const count = new Date(Number(month.slice(0, 4)), Number(month.slice(5)), 0).getDate();
   return <section className="space-y-6" aria-label="Agenda do estúdio">
+    <AdminDashboard revision={revision} />
     <h2 className="text-xl font-serif text-[#dec0b3]">Agenda do estúdio</h2>
     {error && <p role="alert" className="text-rose-300">{error}</p>}
     {notice && <p role="status" className="text-emerald-300">{notice}</p>}
-    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-      {[['Agendamentos no mês', bookings.length], ['No dia selecionado', bookings.filter(b => b.date === day).length], ['Valor agendado no mês', bookings.reduce((n, b) => n + Number(b.price), 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })]].map(([label, value]) => <div key={label} className="rounded border border-zinc-800 p-4"><p className="text-xs text-zinc-400">{label}</p><p className="text-xl text-[#dec0b3] mt-2">{loading ? '…' : value}</p></div>)}
-    </div>
-    <p className="text-xs text-zinc-500">O valor agendado é uma previsão, não uma confirmação de pagamento.</p>
     <div className="rounded border border-zinc-800 p-3 sm:p-6 space-y-4">
       <div className="flex items-center justify-between gap-2">
         <button className={button} disabled={loading || busy} onClick={() => changeMonth(-1)} aria-label="Mês anterior">←</button>
