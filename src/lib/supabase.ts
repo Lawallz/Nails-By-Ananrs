@@ -5,9 +5,12 @@ export const auth=createAuthClient(`${window.location.origin}/api/auth`, {adapte
 export async function authorizationHeaders() {
   const {data:{session}}=await auth.getSession();
   if (!session) return {};
-  // The compatibility adapter exposes an opaque session token, not a signed JWT.
-  const {data,error}=await auth.getBetterAuthInstance().token({query:{}});
-  if(error||!data?.token)throw new Error('Sessão expirada. Entre novamente.');
+  // Use the same-origin proxy so the session cookie accompanies the JWT request.
+  const response=await fetch('/api/auth/token',{
+    method:'GET',credentials:'same-origin',cache:'no-store',
+  });
+  const data=await response.json();
+  if(!response.ok||typeof data?.token!=='string'||!data.token)throw new Error('Sessão expirada. Entre novamente.');
   return {Authorization:`Bearer ${data.token}`};
 }
 export async function isAdmin() {
