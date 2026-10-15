@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Lock, KeyRound, Mail, ArrowRight, Loader2 } from "lucide-react";
-import { supabase } from "../lib/supabase";
+import { supabase, isAdmin } from "../lib/supabase";
 
 interface AdminProtectedProps {
   children: React.ReactNode;
@@ -11,25 +11,19 @@ export const AdminProtected: React.FC<AdminProtectedProps> = ({ children }) => {
   const [loading, setLoading] = useState<boolean>(true);
   
   // Se preferir fixar o e-mail do admin, pode deixar aqui. Ou alterar para o usuário digitar.
-  const [emailInput, setEmailInput] = useState("admin@nailsbyananrs.com");
+  const [emailInput, setEmailInput] = useState("");
   const [passwordInput, setPasswordInput] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [notice, setNotice] = useState("");
+  const resetToken = new URLSearchParams(window.location.search).get('token');
+  const [resetting, setResetting] = useState(!!resetToken);
 
-  // Verifica se já existe uma sessão ativa no Supabase ao carregar a página
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        setIsAuthenticated(true);
-      }
-      setLoading(false);
-    });
-
-    // Escuta mudanças de login/logout
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setIsAuthenticated(!!session);
-    });
-
-    return () => subscription.unsubscribe();
+    let mounted = true;
+    if (resetToken) { setLoading(false); return; }
+    isAdmin().then(allowed => { if (mounted) setIsAuthenticated(allowed); })
+      .catch(() => {}).finally(() => { if (mounted) setLoading(false); });
+    return () => { mounted = false; };
   }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -38,6 +32,13 @@ export const AdminProtected: React.FC<AdminProtectedProps> = ({ children }) => {
     setErrorMessage("");
 
     try {
+      if (resetting && resetToken) {
+        const result = await supabase.auth.getBetterAuthInstance().resetPassword({ token: resetToken, newPassword: passwordInput });
+        if (result.error) throw result.error;
+        window.history.replaceState({}, '', '/gestao-ananrs');
+        setResetting(false); setPasswordInput(''); setNotice('Senha definida. Entre com seu e-mail e a nova senha.');
+        return;
+      }
       const { data, error } = await supabase.auth.signInWithPassword({
         email: emailInput,
         password: passwordInput,
@@ -48,6 +49,8 @@ export const AdminProtected: React.FC<AdminProtectedProps> = ({ children }) => {
       }
 
       if (data.session) {
+        const allowed = await isAdmin();
+        if (!allowed) throw new Error("Esta conta ainda não tem acesso administrativo. Solicite a liberação.");
         setIsAuthenticated(true);
       }
     } catch (error: any) {
@@ -67,7 +70,7 @@ export const AdminProtected: React.FC<AdminProtectedProps> = ({ children }) => {
   }
 
   if (isAuthenticated) {
-    return <>{children}</>;
+    return <><div className="bg-zinc-950 px-4 py-2 text-right"><button type="button" className="text-xs text-zinc-300 underline" onClick={async () => { await supabase.auth.signOut(); setIsAuthenticated(false); setPasswordInput(''); }}>Sair do painel</button></div>{children}</>;
   }
 
   return (
@@ -97,6 +100,7 @@ export const AdminProtected: React.FC<AdminProtectedProps> = ({ children }) => {
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
               <input
                 type="email"
+                autoComplete="username"
                 value={emailInput}
                 onChange={(e) => setEmailInput(e.target.value)}
                 placeholder="admin@seuemail.com"
@@ -115,6 +119,8 @@ export const AdminProtected: React.FC<AdminProtectedProps> = ({ children }) => {
               <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
               <input
                 type="password"
+                autoComplete={resetting ? "new-password" : "current-password"}
+                minLength={resetting ? 8 : undefined}
                 value={passwordInput}
                 onChange={(e) => setPasswordInput(e.target.value)}
                 placeholder="Digite sua senha segura"
@@ -125,7 +131,7 @@ export const AdminProtected: React.FC<AdminProtectedProps> = ({ children }) => {
             </div>
             {errorMessage && (
               <p className="text-rose-400 text-[11px] font-medium pt-1">
-                Credenciais inválidas. Verifique os dados.
+                {errorMessage}
               </p>
             )}
           </div>
@@ -139,11 +145,19 @@ export const AdminProtected: React.FC<AdminProtectedProps> = ({ children }) => {
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
               <>
-                <span>Entrar no Painel</span>
+                <span>{resetting ? "Salvar nova senha" : "Entrar no Painel"}</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </>
             )}
           </button>
+          {notice && <p role="status" className="text-sm text-[#dec0b3]">{notice}</p>}
+          {!resetting && <button type="button" className="text-xs text-zinc-300 underline" onClick={async () => {
+            setErrorMessage(''); setNotice('');
+            if (!emailInput.trim()) { setErrorMessage('Informe seu e-mail acima.'); return; }
+            const {error} = await supabase.auth.resetPasswordForEmail(emailInput.trim(), {redirectTo: `${window.location.origin}/gestao-ananrs`});
+            if (error) setErrorMessage('Não foi possível enviar o link. Tente novamente.');
+            else setNotice('Se o e-mail estiver cadastrado, você receberá um link para definir sua senha.');
+          }}>Primeiro acesso / esqueci minha senha</button>}
         </form>
 
         <div className="text-center border-t border-zinc-900/60 pt-4">

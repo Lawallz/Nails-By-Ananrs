@@ -1,3 +1,4 @@
+import { uploadServiceImage } from "../lib/serviceImage";
 import React, { useState, useEffect, useRef } from "react";
 import { AdminAgenda } from "./AdminAgenda";
 import { supabase } from "../lib/supabase";
@@ -90,18 +91,9 @@ export const AdminView: React.FC = () => {
     }
     if (!imageFile && !newImage) { setFailure("Escolha uma foto para o serviço."); return; }
     busyRef.current = true; setSaving(true);
-    let uploadedPath: string | null = null;
-    let saved = false;
     try {
       let image = newImage;
-      if (imageFile) {
-        const extension = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" }[imageFile.type];
-        const path = `services/${crypto.randomUUID()}.${extension}`;
-        const { error } = await supabase.storage.from("services-images").upload(path, imageFile, { contentType: imageFile.type, upsert: false });
-        if (error) throw error;
-        uploadedPath = path;
-        image = supabase.storage.from("services-images").getPublicUrl(path).data.publicUrl;
-      }
+      if (imageFile) image = await uploadServiceImage(imageFile);
       const fields = { description: newDescription.trim(), name: newName.trim(), price, duration: newDuration.trim(), image };
       const query = editingId
         ? supabase.from("services").update(fields).eq("id", editingId)
@@ -109,16 +101,11 @@ export const AdminView: React.FC = () => {
       const { data, error } = await query.select("*").single();
       if (error) throw error;
       if (!data) throw new Error("O serviço não foi salvo. Confira seu acesso.");
-      saved = true;
       setServices(current => editingId ? current.map(service => service.id === editingId ? data : service) : [...current, data]);
       setMessage(editingId ? "Alterações salvas!" : "Serviço cadastrado!");
       resetForm();
     } catch (error) {
       setFailure(error instanceof Error ? error.message : (error as { message?: string })?.message || "Não foi possível salvar o serviço.");
-      if (uploadedPath && !saved) {
-        const { error: cleanupError } = await supabase.storage.from("services-images").remove([uploadedPath]);
-        if (cleanupError) setFailure(current => current + " A foto enviada ficou no armazenamento; tente salvar novamente.");
-      }
     } finally { busyRef.current = false; setSaving(false); }
   };
 

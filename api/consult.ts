@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type, ThinkingLevel } from "@google/genai";
-import { createClient } from "@supabase/supabase-js";
+import { pool } from "../backend/database.js";
 
 const consultationRateLimit = new Map<string, number[]>();
 const CONSULTATION_WINDOW_MS = 10 * 60 * 1000;
@@ -163,14 +163,6 @@ export default async function handler(req: Request) {
 
   const apiKey = process.env.GEMINI_API_KEY;
 
-  const supabaseUrl =
-    process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-
-  const supabaseKey =
-    process.env.SUPABASE_PUBLISHABLE_KEY ||
-    process.env.SUPABASE_ANON_KEY ||
-    process.env.VITE_SUPABASE_ANON_KEY;
-
   if (!apiKey) {
     console.error("GEMINI_API_KEY não configurada no servidor.");
     return Response.json(
@@ -182,42 +174,8 @@ export default async function handler(req: Request) {
     );
   }
 
-  if (!supabaseUrl || !supabaseKey) {
-    console.error(
-      "Credenciais públicas do Supabase não configuradas no servidor."
-    );
-    return Response.json(
-      {
-        error:
-          "Não foi possível carregar o catálogo de serviços no momento. Tente novamente em instantes.",
-      },
-      { status: 503 }
-    );
-  }
-
   try {
-    const supabase = createClient(supabaseUrl, supabaseKey, {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-      },
-    });
-
-    const { data: services, error: servicesError } = await supabase
-      .from("services")
-      .select("id,name,price,duration,image")
-      .order("name", { ascending: true });
-
-    if (servicesError) {
-      console.error("Erro ao carregar catálogo para o consultor:", servicesError);
-      return Response.json(
-        {
-          error:
-            "Não foi possível carregar os serviços cadastrados. Tente novamente em instantes.",
-        },
-        { status: 503 }
-      );
-    }
+    const {rows:services}=await pool.query('SELECT id,name,price,duration,image FROM public.services ORDER BY name');
 
     if (!services || services.length === 0) {
       return Response.json(
@@ -241,15 +199,8 @@ export default async function handler(req: Request) {
 
     const service = selectedService || services[0];
 
-    const { data: colors, error: colorsError } = await supabase
-      .from("ai_color_catalog")
-      .select("name,hex")
-      .order("name", { ascending: true });
-
-    if (colorsError || !colors || colors.length < 3) {
-      console.error("Erro ao carregar catálogo de cores:", colorsError);
-      return Response.json({ error: "Não foi possível carregar a paleta do salão." }, { status: 503 });
-    }
+    const {rows:colors}=await pool.query('SELECT name,hex FROM public.ai_color_catalog ORDER BY name');
+    if (colors.length < 3) return Response.json({error:'Paleta indisponível.'},{status:503});
 
     const colorCatalog = colors.map((color) => `${color.hex} ${color.name}`).join("\n");
 
