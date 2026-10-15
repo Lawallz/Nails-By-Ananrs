@@ -6,8 +6,10 @@ export async function authorizationHeaders() {
   const {data:{session}}=await auth.getSession();
   if (!session) return {};
   // The compatibility adapter exposes an opaque session token, not a signed JWT.
-  const {data,error}=await auth.getBetterAuthInstance().token({query:{}});
-  if(error||!data?.token)throw new Error('Sessão expirada. Entre novamente.');
+  // Explicit GET avoids the OAuth token-method collision in the SDK adapter.
+  const response=await fetch('/api/auth/token',{credentials:'same-origin',cache:'no-store'});
+  const data=await response.json();
+  if(!response.ok||!data?.token)throw new Error('Sessão expirada. Entre novamente.');
   return {Authorization:`Bearer ${data.token}`};
 }
 export async function isAdmin() {
