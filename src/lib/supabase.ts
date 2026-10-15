@@ -6,7 +6,7 @@ export async function authorizationHeaders() {
   const {data:{session}}=await auth.getSession();
   if (!session) return {};
   // The compatibility adapter exposes an opaque session token, not a signed JWT.
-  const {data,error}=await auth.getBetterAuthInstance().token();
+  const {data,error}=await auth.getBetterAuthInstance().token({query:{}});
   if(error||!data?.token)throw new Error('Sessão expirada. Entre novamente.');
   return {Authorization:`Bearer ${data.token}`};
 }
