@@ -4,7 +4,11 @@ import { SupabaseAuthAdapter } from '@neondatabase/auth/vanilla/adapters';
 export const auth=createAuthClient(`${window.location.origin}/api/auth`, {adapter:SupabaseAuthAdapter()});
 export async function authorizationHeaders() {
   const {data:{session}}=await auth.getSession();
-  return session?.access_token ? {Authorization:`Bearer ${session.access_token}`} : {};
+  if (!session) return {};
+  // The compatibility adapter exposes an opaque session token, not a signed JWT.
+  const {data,error}=await auth.getBetterAuthInstance().token();
+  if(error||!data?.token)throw new Error('Sessão expirada. Entre novamente.');
+  return {Authorization:`Bearer ${data.token}`};
 }
 export async function isAdmin() {
   const response=await fetch('/api/data',{method:'POST',headers:{'Content-Type':'application/json',...await authorizationHeaders()},body:JSON.stringify({action:'session'})});
