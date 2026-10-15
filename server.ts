@@ -2,10 +2,10 @@ import 'dotenv/config';
 import express from 'express';
 import path from 'node:path';
 import { createServer as createViteServer } from 'vite';
-import data from './api/data.js';
-import image from './api/image.js';
-import auth from './api/auth/[...path].js';
-import consult from './api/consult.js';
+import { fetch as data } from './api/data.js';
+import { fetch as image } from './api/image.js';
+import { fetch as auth } from './api/auth.js';
+import { fetch as consult } from './api/consult.js';
 const app=express();
 app.use('/api',express.raw({type:()=>true,limit:'900kb'}));
 function bridge(handler:(request:Request)=>Promise<Response>) {

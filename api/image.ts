@@ -1,6 +1,6 @@
 import { pool } from '../backend/database.js';
 import { identity } from '../backend/identity.js';
-export default async function handler(req:Request) {
+export async function fetch(req:Request) {
   try {
     if(req.method==='GET') {
       const id=new URL(req.url).searchParams.get('id');

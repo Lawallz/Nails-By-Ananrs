@@ -2,7 +2,7 @@ import { isIP } from 'node:net';
 import { pool } from '../backend/database.js';
 import { identity } from '../backend/identity.js';
 import { executeQuery } from '../backend/query.js';
-export default async function handler(req: Request) {
+export async function fetch(req: Request) {
   const headers={'Cache-Control':'private, no-store'};
   if(req.method!=='POST')return Response.json({error:{message:'Método inválido.'}},{status:405,headers});
   let db;

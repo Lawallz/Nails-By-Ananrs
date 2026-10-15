@@ -118,7 +118,7 @@ async function generateWithRetry(
   throw new Error("Gemini indisponível após as tentativas.");
 }
 
-export default async function handler(req: Request) {
+export async function fetch(req: Request) {
   if (req.method !== "POST") {
     return Response.json({ error: "Método não permitido." }, { status: 405 });
   }
