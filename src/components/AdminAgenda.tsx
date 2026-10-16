@@ -1,3 +1,4 @@
+import { shiftMonth } from '../lib/bookingAnalytics';
 import { BookingOperations } from './BookingOperations';
 import { WeeklyAgenda } from './WeeklyAgenda';
 import { ManagedBooking, canEditSchedule, isInactive, reminderUrl, statuses } from '../lib/bookingOperations';
@@ -40,12 +41,13 @@ export function AdminAgenda({ services }: { services: Service[] }) {
   const load = async (silent = false) => {
     const request = ++requestId.current;
     const targetMonth = monthRef.current;
+    const nextMonth = shiftMonth(targetMonth, 1);
     if (!silent) setLoading(true);
     try {
       const [b, x, s] = await Promise.all([
-        supabase.from('bookings').select('*').gte('date', `${targetMonth}-01`).lte('date', `${targetMonth}-31`).order('date').order('time'),
-        supabase.from('schedule_blocks').select('*').gte('date', `${targetMonth}-01`).lte('date', `${targetMonth}-31`).order('start_time'),
-        supabase.from('booking_slots').select('date,time,duration_minutes').gte('date', `${targetMonth}-01`).lte('date', `${targetMonth}-31`),
+        supabase.from('bookings').select('*').gte('date', `${targetMonth}-01`).lt('date', `${nextMonth}-01`).order('date').order('time'),
+        supabase.from('schedule_blocks').select('*').gte('date', `${targetMonth}-01`).lt('date', `${nextMonth}-01`).order('start_time'),
+        supabase.from('booking_slots').select('date,time,duration_minutes').gte('date', `${targetMonth}-01`).lt('date', `${nextMonth}-01`),
       ]);
       if (b.error || x.error || s.error) throw b.error || x.error || s.error;
       if (request !== requestId.current) return;

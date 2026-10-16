@@ -1,3 +1,4 @@
+import { readBody } from '../backend/http.js';
 import { pool } from '../backend/database.js';
 import { identity } from '../backend/identity.js';
 export async function fetch(req:Request) {
@@ -12,7 +13,7 @@ export async function fetch(req:Request) {
     if(req.method!=='POST')return new Response(null,{status:405});
     if(!(await identity(req))?.admin)return new Response(null,{status:403});
     if(Number(req.headers.get('content-length'))>800000)return new Response(null,{status:413});
-    const bytes=Buffer.from(await req.arrayBuffer());
+    const bytes=Buffer.from(await readBody(req,800000));
     if(bytes.length>800000||bytes.toString('ascii',0,4)!=='RIFF'||bytes.toString('ascii',8,12)!=='WEBP')return Response.json({error:'Foto inválida.'},{status:400});
     const {rows}=await pool.query('INSERT INTO private.service_images(content) VALUES($1) RETURNING id',[bytes]);
     return Response.json({url:`/api/image?id=${rows[0].id}`},{headers:{'Cache-Control':'no-store'}});

@@ -1,28 +1,24 @@
+import { isIP } from 'node:net';
+import { readJson } from '../backend/http.js';
 import { GoogleGenAI, Type, ThinkingLevel } from "@google/genai";
 import { pool } from "../backend/database.js";
 
-const consultationRateLimit = new Map<string, number[]>();
-const CONSULTATION_WINDOW_MS = 10 * 60 * 1000;
-const CONSULTATION_MAX_REQUESTS = 8;
-
 function getClientIp(req: Request) {
-  return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const ip = process.env.VERCEL
+    ? req.headers.get('x-vercel-forwarded-for')?.split(',')[0]?.trim()
+    : '127.0.0.1';
+  return ip && isIP(ip) ? ip : null;
 }
 
-function allowConsultation(ip: string) {
-  const now = Date.now();
-  const recent = (consultationRateLimit.get(ip) || []).filter(
-    (timestamp) => now - timestamp < CONSULTATION_WINDOW_MS
-  );
-
-  if (recent.length >= CONSULTATION_MAX_REQUESTS) {
-    consultationRateLimit.set(ip, recent);
-    return false;
-  }
-
-  recent.push(now);
-  consultationRateLimit.set(ip, recent);
-  return true;
+// Shared atomic quotas survive cold starts and apply across all function instances.
+async function consultationQuota(ip: string) {
+  const { rows } = await pool.query(
+    `WITH ip AS MATERIALIZED (
+      SELECT public.nails_consume_service_quota('ai_ip', $1) AS result
+    ) SELECT CASE WHEN (result->>'allowed')::boolean
+      THEN public.nails_consume_service_quota('ai_global', 'global')
+      ELSE result END AS result FROM ip`, [ip]);
+  return rows[0].result as { allowed: boolean; retry_after: number };
 }
 
 function isRetryableGeminiError(error: unknown) {
@@ -60,10 +56,13 @@ async function generateWithRetry(
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
-      const generation = ai.models.generateContent({
+      return await ai.models.generateContent({
         model,
         contents: prompt,
         config: {
+          abortSignal: AbortSignal.timeout(timeoutMs),
+          httpOptions: { timeout: timeoutMs, retryOptions: { attempts: 1 } },
+          maxOutputTokens: 600,
           systemInstruction:
             "Você é uma especialista em Nail Estética de Luxo e consultora de imagem do Nails By Ananrs. Responda em português do Brasil, com tom refinado, acolhedor e profissional. O serviço já foi definido pelo sistema; não o altere. Use exclusivamente as cores do catálogo autorizado.",
           responseMimeType: "application/json",
@@ -95,15 +94,6 @@ async function generateWithRetry(
         },
       });
 
-      return await Promise.race([
-        generation,
-        new Promise<never>((_, reject) =>
-          setTimeout(
-            () => reject(Object.assign(new Error("Gemini request timeout"), { status: 408 })),
-            timeoutMs
-          )
-        ),
-      ]);
     } catch (error) {
       if (!isRetryableGeminiError(error) || attempt === maxAttempts) {
         throw error;
@@ -131,18 +121,19 @@ export async function fetch(req: Request) {
   };
 
   try {
-    body = await req.json();
+    body = await readJson(req, 8192);
   } catch (error) {
-    console.error("Erro ao interpretar body de /api/consult:", error);
+
     return Response.json(
       { error: "Dados da consultoria inválidos. Recarregue a página e tente novamente." },
-      { status: 400 }
+      { status: (error as {status?:number}).status || 400 }
     );
   }
 
   const { occasion, nailShape, styleDescription, nailStatus } = body;
 
-  if (!occasion || !nailShape || !nailStatus) {
+  if ([occasion,nailShape,nailStatus].some(v => typeof v !== 'string' || !v.trim() || v.length > 80) ||
+      (styleDescription !== undefined && (typeof styleDescription !== 'string' || styleDescription.length > 600))) {
     return Response.json(
       { error: "Campos obrigatórios ausentes." },
       { status: 400 }
@@ -151,15 +142,7 @@ export async function fetch(req: Request) {
 
   const clientIp = getClientIp(req);
 
-  if (!allowConsultation(clientIp)) {
-    return Response.json(
-      {
-        error:
-          "Limite temporário do consultor atingido. Aguarde alguns minutos e tente novamente.",
-      },
-      { status: 429 }
-    );
-  }
+  if (!clientIp) return Response.json({error:'Origem inválida.'},{status:400});
 
   const apiKey = process.env.GEMINI_API_KEY;
 
@@ -175,7 +158,11 @@ export async function fetch(req: Request) {
   }
 
   try {
-    const {rows:services}=await pool.query('SELECT id,name,price,duration,image FROM public.services ORDER BY name');
+    const quota = await consultationQuota(clientIp);
+    if (!quota.allowed) return Response.json(
+      {error:'Limite temporário do consultor atingido. Tente novamente mais tarde.'},
+      {status:429,headers:{'Retry-After':String(quota.retry_after),'Cache-Control':'no-store'}});
+    const {rows:services}=await pool.query('SELECT id,name FROM public.services ORDER BY name LIMIT 100');
 
     if (!services || services.length === 0) {
       return Response.json(
@@ -199,7 +186,7 @@ export async function fetch(req: Request) {
 
     const service = selectedService || services[0];
 
-    const {rows:colors}=await pool.query('SELECT name,hex FROM public.ai_color_catalog ORDER BY name');
+    const {rows:colors}=await pool.query('SELECT name,hex FROM public.ai_color_catalog ORDER BY name LIMIT 100');
     if (colors.length < 3) return Response.json({error:'Paleta indisponível.'},{status:503});
 
     const colorCatalog = colors.map((color) => `${color.hex} ${color.name}`).join("\n");
@@ -278,7 +265,7 @@ REGRAS:
         });
       } catch (error) {
         lastError = error;
-        console.error(`Gemini consultation failed with ${model}:`, error);
+        console.error(`Gemini consultation failed with ${model}`);
 
         if (!isRetryableGeminiError(error) && model === models[0]) {
           continue;
@@ -286,7 +273,7 @@ REGRAS:
       }
     }
 
-    console.error("All Gemini consultation models failed:", lastError);
+    console.error("Gemini consultation unavailable; using local recommendation.");
 
     // Fallback determinístico: o site continua funcional mesmo se a IA estiver indisponível.
 
@@ -315,10 +302,7 @@ REGRAS:
       model: "rules-fallback",
     });
   } catch (error) {
-    console.error("Consultation endpoint error:", error);
-
-    const message = error instanceof Error ? error.message : String(error);
-    console.error("Consultation endpoint error detail:", message);
+    console.error("Consultation endpoint failed.");
 
     return Response.json(
       {

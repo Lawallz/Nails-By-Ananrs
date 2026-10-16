@@ -54,16 +54,21 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
 
   // Public availability contains only date, time and duration, never customer data.
   useEffect(() => {
+    if (step !== 2) return;
     let active = true;
+    const controller = new AbortController();
+    const end = new Date(`${studioToday()}T12:00:00`);
+    end.setDate(end.getDate() + 12);
+    const lastDate = end.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
     setLoadingAvailability(true);
     setAvailabilityError("");
     const fetchSlots = async () => {
       try {
         const { data, error } = await supabase.from('booking_slots')
           .select('date,time,duration_minutes')
-          .gte('date', new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }));
+          .gte('date', studioToday()).lte('date', lastDate).order('date').order('time').abortSignal(controller.signal);
         if (error) throw error;
-        const { data: blocks, error: blockError } = await supabase.from('schedule_blocks').select('date,start_time,end_time').gte('date', studioToday());
+        const { data: blocks, error: blockError } = await supabase.from('schedule_blocks').select('date,start_time,end_time').gte('date', studioToday()).lte('date', lastDate).order('date').order('start_time').abortSignal(controller.signal);
         if (blockError) throw blockError;
         if (active) { setExistingBookings(data || []); setBlockedSlots(blocks || []); }
       } catch {
@@ -76,7 +81,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
       }
     };
     void fetchSlots();
-    return () => { active = false; };
+    return () => { active = false; controller.abort(); };
   }, [step, refreshAvailability]);
 
   // Se um serviço pré-selecionado vier de fora, avança pro Passo 2

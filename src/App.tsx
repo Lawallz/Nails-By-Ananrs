@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, lazy, Suspense } from "react";
 import { Navbar } from "./components/Navbar";
 import { HomeView } from "./components/HomeView";
-import { ServicesView } from "./components/ServicesView";
-import { PortfolioView } from "./components/PortfolioView";
-import { AIStylistView } from "./components/AIStylistView";
-import { BookingWizard } from "./components/BookingWizard";
-import { AdminView } from "./components/AdminView";
-import { AdminProtected } from "./components/AdminProtected"; // <-- Componente de proteção com senha
+const ServicesView = lazy(() => import("./components/ServicesView").then(m => ({default:m.ServicesView})));
+const PortfolioView = lazy(() => import("./components/PortfolioView").then(m => ({default:m.PortfolioView})));
+const AIStylistView = lazy(() => import("./components/AIStylistView").then(m => ({default:m.AIStylistView})));
+const BookingWizard = lazy(() => import("./components/BookingWizard").then(m => ({default:m.BookingWizard})));
+const AdminView = lazy(() => import("./components/AdminView").then(m => ({default:m.AdminView})));
+const AdminProtected = lazy(() => import("./components/AdminProtected").then(m => ({default:m.AdminProtected})));
 import { Sparkles, Calendar, Heart, ShieldAlert, Award, FileText, CheckCircle2, Phone, Smile } from "lucide-react";
 import { Service, Booking } from "./types";
 
@@ -51,6 +51,7 @@ export default function App() {
   // Se a rota administrativa for acessada, renderiza o painel protegido pelo Supabase Auth
   if (isAdminRoute) {
     return (
+      <Suspense fallback={<p role="status" className="p-8 text-center">Carregando painel…</p>}>
       <AdminProtected>
         <div className="min-h-screen bg-[#0b0a0a] text-zinc-100 flex flex-col justify-between">
           <header className="bg-zinc-950 border-b border-zinc-900 px-6 py-4 flex justify-between items-center">
@@ -65,6 +66,7 @@ export default function App() {
           </footer>
         </div>
       </AdminProtected>
+      </Suspense>
     );
   }
 
@@ -80,6 +82,7 @@ export default function App() {
 
       {/* Main Screen Active Panel Wrapper with soft entrance fading */}
       <main className="flex-grow pt-4">
+        <Suspense fallback={<p role="status" className="p-8 text-center">Carregando…</p>}>
         {activeTab === "inicio" && (
           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
             <HomeView 
@@ -133,6 +136,7 @@ export default function App() {
             />
           </div>
         )}
+      </Suspense>
       </main>
 
       {/* Accordion panel block: Local agenda records history log */}

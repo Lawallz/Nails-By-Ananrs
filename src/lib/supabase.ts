@@ -2,7 +2,12 @@
 import { createAuthClient } from '@neondatabase/auth';
 import { SupabaseAuthAdapter } from '@neondatabase/auth/vanilla/adapters';
 export const auth=createAuthClient(`${window.location.origin}/api/auth`, {adapter:SupabaseAuthAdapter()});
-export async function authorizationHeaders() {
+let pendingAuthorization: Promise<Record<string,string>> | undefined;
+export function authorizationHeaders(): Promise<Record<string,string>> {
+  // Share concurrent requests only; no persistent JWT cache or localStorage.
+  return pendingAuthorization ??= loadAuthorizationHeaders().finally(() => { pendingAuthorization=undefined; });
+}
+async function loadAuthorizationHeaders(): Promise<Record<string,string>> {
   const {data:{session}}=await auth.getSession();
   if (!session) return {};
   // Use the same-origin proxy so the session cookie accompanies the JWT request.
