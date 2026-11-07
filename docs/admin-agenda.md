@@ -5,8 +5,8 @@
 - Ao trocar o serviço, o preço é atualizado para o valor do catálogo. Ao apenas reagendar, o valor original é mantido.
 - **Confirmar pelo WhatsApp** abre a conversa da cliente com serviço, data, horário e endereço. A administradora revisa e envia; abrir o link não registra entrega nem confirmação de leitura.
 - Bloqueie um dia inteiro ou um intervalo. Se houver cliente no período, reagende antes. Desbloquear libera o período para novos agendamentos.
-- Domingo é folga na interface e no banco. Agendamentos antigos não são apagados.
-- Administradora pode agendar a partir de hoje; o público mantém a janela existente de amanhã até 31 dias. A vitrine de datas mostra os próximos 12 dias, sem domingos.
+- A cliente escolhe a data clicando no calendário, de amanhã até 60 dias à frente. Domingos continuam como folga.
+- A administradora pode consultar os meses da agenda e criar agendamentos a partir de hoje. Agendamentos antigos não são apagados.
 - Resumo mensal mostra quantidade e valor agendado, sem representar pagamentos recebidos.
 - O catálogo agora aceita descrição breve, exibida nos detalhes do serviço no celular.
 
