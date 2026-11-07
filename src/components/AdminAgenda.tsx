@@ -104,7 +104,7 @@ export function AdminAgenda({ services, section, onNavigateToNewBooking }: { ser
     });
   };
   const service = services.find(s => s.id === form.service_id);
-  const visible = bookings.filter(b => (showAll || b.date === day) && (statusFilter === 'all' || b.status === statusFilter) && (!search || `${b.client_name} ${b.client_phone} ${b.service_name}`.toLocaleLowerCase('pt-BR').includes(search.toLocaleLowerCase('pt-BR'))));
+  const visible = bookings.filter(b => b.status !== 'cancelled' && (showAll || b.date === day) && (statusFilter === 'all' || b.status === statusFilter) && (!search || `${b.client_name} ${b.client_phone} ${b.service_name}`.toLocaleLowerCase('pt-BR').includes(search.toLocaleLowerCase('pt-BR'))));
   const first = new Date(`${month}-01T12:00:00`).getDay();
   const count = new Date(Number(month.slice(0, 4)), Number(month.slice(5)), 0).getDate();
   const headings: Record<AgendaSection, string> = {
@@ -143,7 +143,7 @@ export function AdminAgenda({ services, section, onNavigateToNewBooking }: { ser
       <label className="text-sm text-zinc-300">Data selecionada<input className={`${field} mt-1`} type="date" value={day} onChange={e => selectDay(e.target.value)} /></label>
       <div className="flex flex-wrap gap-2"><button className={button} onClick={() => setShowAll(v => !v)}>{showAll ? 'Ver somente o dia' : 'Ver mês inteiro'}</button><button className={button} disabled={loading || busy} onClick={() => { setError(''); void load(); }}>Atualizar atendimentos</button></div>
     </div>
-    <div className="flex flex-wrap items-center justify-between gap-3"><h3>Atendimentos — {showAll ? new Date(`${month}-01T12:00:00`).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }) : dateLabel(day)}</h3><label className="text-sm">Filtrar status<select className={`${field} mt-1`} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}><option value="all">Todos os status</option>{Object.entries(statuses).map(([key,label]) => <option key={key} value={key}>{label}</option>)}</select></label></div>
+    <div className="flex flex-wrap items-center justify-between gap-3"><h3>Atendimentos — {showAll ? new Date(`${month}-01T12:00:00`).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }) : dateLabel(day)}</h3><label className="text-sm">Filtrar status<select className={`${field} mt-1`} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}><option value="all">Todos os status</option>{Object.entries(statuses).filter(([key]) => key !== 'cancelled').map(([key,label]) => <option key={key} value={key}>{label}</option>)}</select></label></div>
     <label className="block text-sm">Buscar cliente, WhatsApp ou serviço<input className={`${field} mt-1`} value={search} onChange={e => setSearch(e.target.value)} placeholder="Digite um nome, telefone ou serviço" /></label>
     {loading ? <p role="status">Carregando agenda…</p> : visible.length === 0 ? <p className="text-zinc-400 text-sm">Nenhum agendamento neste período.</p> : <div className="grid md:grid-cols-2 gap-4">{visible.map(b => {
       const url = confirmationUrl(b);
