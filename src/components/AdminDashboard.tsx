@@ -13,7 +13,7 @@ function Bars({ items, total, color = 'bg-[#dec0b3]' }: { items: Array<{ label: 
     <div aria-hidden="true" className="h-2 mt-2 rounded-full bg-zinc-800 overflow-hidden"><div className={`h-full rounded-full ${color}`} style={{ width: `${item.count / maximum * 100}%` }} /></div>
   </li>)}</ul>;
 }
-export function AdminDashboard({ revision }: { revision: number }) {
+export function AdminDashboard({ revision, view = 'overview' }: { revision: number; view?: 'overview' | 'finance' }) {
   const [month, setMonth] = useState(() => studioToday().slice(0, 7));
   const [refresh, setRefresh] = useState(0);
   const [state, setState] = useState<{ key: string; rows: AnalyticsBooking[]; payments: CashEntry[]; loading: boolean; error: string }>({ key: '', rows: [], payments: [], loading: true, error: '' });
@@ -64,8 +64,8 @@ export function AdminDashboard({ revision }: { revision: number }) {
   };
   return <section aria-labelledby="dashboard-heading" className="space-y-5 border-b border-zinc-800 pb-8">
     <div className="flex flex-wrap items-center justify-between gap-4">
-      <div><p className="text-xs uppercase tracking-widest text-[#dec0b3]">Visão do negócio</p><h2 id="dashboard-heading" className="text-2xl font-serif mt-1 flex items-center gap-2"><BarChart3 size={22} /> Dashboard</h2></div>
-      <div className="flex flex-wrap gap-2"><button className={button} disabled={loading} onClick={() => setRefresh(n => n + 1)}><RefreshCw size={16} /> Atualizar</button><button className={button} disabled={loading || !!state.error || (!summary.total && !cash.count)} onClick={exportReport}><Download size={16} /> Baixar relatório CSV</button></div>
+      <div><p className="text-xs uppercase tracking-widest text-[#dec0b3]">Visão do negócio</p><h2 id="dashboard-heading" className="text-2xl font-serif mt-1 flex items-center gap-2"><BarChart3 size={22} /> {view === 'finance' ? 'Financeiro' : 'Resumo do negócio'}</h2></div>
+      <div className="flex flex-wrap gap-2"><button className={button} disabled={loading} onClick={() => setRefresh(n => n + 1)}><RefreshCw size={16} /> Atualizar</button>{view === 'finance' && <button className={button} disabled={loading || !!state.error || (!summary.total && !cash.count)} onClick={exportReport}><Download size={16} /> Baixar relatório CSV</button>}</div>
     </div>
     <div className="flex flex-wrap gap-3 items-end">
       <button className={button} disabled={month <= '2000-01'} aria-label="Mês anterior do relatório" onClick={() => setMonth(shiftMonth(month, -1))}><ChevronLeft size={18} /></button>
@@ -73,7 +73,7 @@ export function AdminDashboard({ revision }: { revision: number }) {
       <button className={button} disabled={month >= '2100-12'} aria-label="Próximo mês do relatório" onClick={() => setMonth(shiftMonth(month, 1))}><ChevronRight size={18} /></button>
       <button className={button} onClick={() => setMonth(studioToday().slice(0, 7))}>Mês atual</button>
     </div>
-    <p className="text-xs text-zinc-400 leading-relaxed">Pela data do atendimento, incluindo horários futuros. Comparação com {monthLabel(previousMonth)} inteiro. Meses em andamento ainda podem receber novos agendamentos. Recebimentos e estornos usam a data do lançamento. Somente pagamentos registrados no painel entram no financeiro.</p>
+    <p className="text-xs text-zinc-400 leading-relaxed">{view === 'finance' ? 'Recebimentos e estornos usam a data do lançamento. Somente pagamentos registrados manualmente no painel entram no financeiro.' : `Indicadores pela data do atendimento, incluindo horários futuros. Comparação com ${monthLabel(previousMonth)} inteiro; meses em andamento ainda podem receber novos agendamentos.`}</p>
     {loading ? <p role="status" className="p-8 text-center text-zinc-400">Carregando indicadores…</p> : state.error ? <div role="alert" className="rounded-lg border border-rose-900 p-4 text-rose-300">Não foi possível carregar os indicadores. {state.error} Use Atualizar para tentar novamente.</div> : <>
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
         {[
@@ -83,6 +83,18 @@ export function AdminDashboard({ revision }: { revision: number }) {
           { label: 'Dias com agendamentos', value: String(summary.activeDays), comparison: `${summary.activeDays ? (summary.count / summary.activeDays).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : 0} agendamentos por dia com agenda`, before: String(previous.activeDays) },
         ].map(item => <div key={item.label} className={card}><h3 className="text-xs text-zinc-400">{item.label}</h3><p className="text-2xl font-semibold text-[#dec0b3] mt-3 break-words">{item.value}</p><p className="text-xs text-zinc-300 mt-2">{item.comparison}</p><p className="text-xs text-zinc-500 mt-1">Mês anterior: {item.before}</p></div>)}
       </div>
+      {view === 'overview' ? <>
+      {!summary.count ? <div className={`${card} text-center py-10`}><h3 className="text-lg">Nenhum agendamento válido neste mês</h3><p className="text-sm text-zinc-400 mt-2">Escolha outro período ou cadastre agendamentos para acompanhar os indicadores.</p></div> : <>
+        <div className="grid lg:grid-cols-3 gap-4">
+          <div className={`${card} lg:col-span-2`}><h3 className="font-semibold">Serviços mais agendados</h3><p className="text-xs text-zinc-400 mt-1">Os 5 primeiros por quantidade de agendamentos.</p><Bars items={summary.services.slice(0, 5)} total={summary.count} /></div>
+          <div className={`${card} space-y-5`}><h3 className="font-semibold">Destaques do mês</h3><div><p className="text-xs text-zinc-400">Serviço líder no ranking</p><p className="text-[#dec0b3] mt-1 break-words">{summary.services[0]?.label}</p><p className="text-xs mt-1">{summary.services[0]?.count} agendamentos · {money(summary.services[0]?.value || 0)}</p></div><div><p className="text-xs text-zinc-400">Dias da semana com maior procura</p><p className="mt-1">{peakDays.map(d => d.label).join(', ')}</p></div><div><p className="text-xs text-zinc-400">Horários de início mais procurados</p><p className="mt-1">{peakHours.map(h => h.label).join(', ')}</p></div></div>
+        </div>
+        <div className="grid md:grid-cols-2 gap-4">
+          <div className={card}><h3 className="font-semibold">Procura por dia da semana</h3><p className="text-xs text-zinc-400 mt-1">Quantidade total no mês; não representa taxa de ocupação.</p><Bars items={summary.weekdays} total={summary.count} color="bg-sky-300" /></div>
+          <div className={card}><h3 className="font-semibold">Horários mais procurados</h3><p className="text-xs text-zinc-400 mt-1">Horário de início dos agendamentos.</p><Bars items={summary.hours} total={summary.count} color="bg-emerald-300" /></div>
+        </div>
+      </>}
+      </> : <>
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
         {[
           ['Recebido líquido registrado', money(cash.net), variation(cash.net, previousCash.net)],
@@ -109,7 +121,8 @@ export function AdminDashboard({ revision }: { revision: number }) {
         <div className={card}><h3 className="font-semibold mb-4">Relatório por serviço</h3><div className="overflow-x-auto"><table className="w-full text-sm text-left"><caption className="sr-only">Quantidade, participação e valor agendado por serviço em {monthLabel(month)}</caption><thead className="text-xs text-zinc-400"><tr><th scope="col" className="py-3 pr-4">Serviço</th><th scope="col" className="py-3 px-3 text-right">Qtd.</th><th scope="col" className="py-3 px-3 text-right">Participação</th><th scope="col" className="py-3 pl-3 text-right">Valor agendado</th></tr></thead><tbody>{summary.services.map(s => <tr key={s.id} className="border-t border-zinc-800"><th scope="row" className="py-3 pr-4 font-normal min-w-40">{s.label}</th><td className="p-3 text-right">{s.count}</td><td className="p-3 text-right">{(s.count / summary.count * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%</td><td className="py-3 pl-3 text-right whitespace-nowrap">{money(s.value)}</td></tr>)}</tbody></table></div></div>
         <details className={card}><summary className="cursor-pointer font-semibold">Ver relatório diário de {monthLabel(month)}</summary><div className="overflow-x-auto mt-4"><table className="w-full text-sm text-left"><thead className="text-zinc-400"><tr><th scope="col" className="py-2">Data</th><th scope="col" className="p-2 text-right">Agendamentos</th><th scope="col" className="py-2 text-right">Valor agendado</th></tr></thead><tbody>{summary.daily.map(d => <tr key={d.date} className="border-t border-zinc-800"><th scope="row" className="py-2 font-normal whitespace-nowrap">{dateLabel(d.date)}</th><td className="p-2 text-right">{d.count}</td><td className="py-2 text-right whitespace-nowrap">{money(d.value)}</td></tr>)}</tbody></table></div></details>
       </>}
-      <p className="text-xs text-zinc-500">O CSV inclui serviços, procura, detalhamento diário, status e financeiro. Cancelamentos e faltas ficam no histórico e nas taxas, mas não entram no valor previsto nem no saldo pendente. Recebimentos são informados manualmente, sem integração bancária.</p>
+      {view === 'finance' && <p className="text-xs text-zinc-500">O CSV inclui serviços, procura, detalhamento diário, status e financeiro. Cancelamentos e faltas ficam no histórico e nas taxas, mas não entram no valor previsto nem no saldo pendente. Recebimentos são informados manualmente, sem integração bancária.</p>}
+      </>}
     </>}
   </section>;
 }

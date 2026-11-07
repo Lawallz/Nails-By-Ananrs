@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { AdminAgenda } from "./AdminAgenda";
 import { AdminDashboard } from "./AdminDashboard";
 import { supabase } from "../lib/supabase";
-import { Trash2, Plus, DollarSign, Calendar, Clock, User, Phone, Pencil, X, Loader2, LogOut, CheckCircle2, LayoutDashboard, CalendarDays, BriefcaseBusiness } from "lucide-react";
+import { Trash2, Plus, DollarSign, Calendar, Clock, User, Phone, Pencil, X, Loader2, LogOut, CheckCircle2, LayoutDashboard, CalendarDays, BriefcaseBusiness, ListChecks, CalendarPlus, CalendarX2, Wallet } from "lucide-react";
 
 interface Service {
   id: string;
@@ -16,7 +16,7 @@ interface Service {
 
 export const AdminView: React.FC = () => {
   const [services, setServices] = useState<Service[]>([]);
-  const [activeSection, setActiveSection] = useState<"overview" | "calendar" | "services">("overview");
+  const [activeSection, setActiveSection] = useState<"overview" | "calendar" | "appointments" | "new-booking" | "blocks" | "finance" | "services">("overview");
   const [loading, setLoading] = useState(true);
 
   const [newName, setNewName] = useState("");
@@ -135,20 +135,31 @@ export const AdminView: React.FC = () => {
         <p className="text-xs text-zinc-500 animate-pulse">Carregando dados da nuvem...</p>
       ) : (
         <div className="grid lg:grid-cols-[240px_minmax(0,1fr)] gap-6 lg:gap-10 items-start">
-          <nav aria-label="Navegação do painel" className="lg:sticky lg:top-6 grid grid-cols-3 lg:grid-cols-1 gap-2 rounded-xl border border-zinc-800 bg-zinc-950/70 p-2">
+          <nav aria-label="Navegação do painel" className="lg:sticky lg:top-6 grid grid-cols-2 lg:grid-cols-1 gap-2 rounded-xl border border-zinc-800 bg-zinc-950/70 p-2">
             {[
-              { id: "overview" as const, label: "Visão geral", icon: LayoutDashboard },
+              { id: "overview" as const, label: "Resumo", icon: LayoutDashboard },
               { id: "calendar" as const, label: "Calendário", icon: CalendarDays },
+              { id: "appointments" as const, label: "Atendimentos", icon: ListChecks },
+              { id: "new-booking" as const, label: "Novo agendamento", icon: CalendarPlus },
+              { id: "blocks" as const, label: "Bloqueios", icon: CalendarX2 },
+              { id: "finance" as const, label: "Financeiro", icon: Wallet },
               { id: "services" as const, label: "Serviços", icon: BriefcaseBusiness },
             ].map(({ id, label, icon: Icon }) => (
-              <button key={id} type="button" onClick={() => setActiveSection(id)} aria-current={activeSection === id ? "page" : undefined} className={`flex items-center justify-center lg:justify-start gap-2.5 rounded-lg px-3 py-3 text-xs sm:text-sm font-medium transition-colors ${activeSection === id ? "bg-[#dec0b3] text-zinc-950" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"}`}>
+              <button key={id} type="button" onClick={() => setActiveSection(id)} aria-current={activeSection === id ? "page" : undefined} className={`flex min-w-0 items-center justify-center lg:justify-start gap-2.5 rounded-lg px-3 py-3 text-xs sm:text-sm font-medium transition-colors ${activeSection === id ? "bg-[#dec0b3] text-zinc-950" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"}`}>
                 <Icon className="w-4 h-4 shrink-0" /><span>{label}</span>
               </button>
             ))}
           </nav>
           <div className="min-w-0 space-y-8">
             {activeSection === "overview" && <AdminDashboard revision={0} />}
-            {activeSection === "calendar" && <AdminAgenda services={services} />}
+            {activeSection === "finance" && <AdminDashboard revision={0} view="finance" />}
+            {(activeSection === "calendar" || activeSection === "appointments" || activeSection === "new-booking" || activeSection === "blocks") && (
+              <AdminAgenda
+                services={services}
+                section={activeSection === "new-booking" ? "new-booking" : activeSection}
+                onNavigateToNewBooking={() => setActiveSection("new-booking")}
+              />
+            )}
             {activeSection === "services" && (
 <div className="space-y-6 pt-8 border-t border-zinc-800">
             <h2 className="text-xl font-serif text-[#dec0b3] uppercase flex items-center gap-2">
