@@ -2,7 +2,6 @@ import { shiftMonth } from '../lib/bookingAnalytics';
 import { BookingOperations } from './BookingOperations';
 import { WeeklyAgenda } from './WeeklyAgenda';
 import { ManagedBooking, canEditSchedule, isInactive, reminderUrl, statuses } from '../lib/bookingOperations';
-import { AdminDashboard } from './AdminDashboard';
 import React, { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { confirmationUrl, dateLabel, durationMinutes, isSunday, minutes, overlaps, studioToday, times } from '../lib/schedule';
@@ -104,7 +103,6 @@ export function AdminAgenda({ services }: { services: Service[] }) {
   const first = new Date(`${month}-01T12:00:00`).getDay();
   const count = new Date(Number(month.slice(0, 4)), Number(month.slice(5)), 0).getDate();
   return <section className="space-y-6" aria-label="Agenda do estúdio">
-    <AdminDashboard revision={revision} />
     <h2 className="text-xl font-serif text-[#dec0b3]">Agenda do estúdio</h2>
     {error && <p role="alert" className="text-rose-300">{error}</p>}
     {notice && <p role="status" className="text-emerald-300">{notice}</p>}
