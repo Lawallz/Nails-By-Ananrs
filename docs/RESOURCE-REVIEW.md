@@ -12,7 +12,7 @@
 - Cache exclusivamente para catálogo público (services/ai_color_catalog): TTL 30 segundos, no máximo 16 respostas, cada resposta até 64 KiB serializados. Memória real inclui overhead JS. Não persiste em disco nem cresce indefinidamente. Atualizações invalidam a instância local; outras instâncias expiram em até 30 segundos. O preço da reserva continua calculado pelo banco.
 - Agendamentos, pagamentos, disponibilidade, sessões e usuários nunca entram nesse cache. Cabeçalhos de dados permanecem private/no-store.
 - Pedidos concorrentes de token compartilham só a promessa em andamento; nenhum JWT novo em localStorage ou cache persistente.
-- Disponibilidade pública só é buscada na etapa de escolher horário e dentro dos 12 dias exibidos; cancela requisições ao sair.
+- Disponibilidade pública só é buscada na etapa de escolher horário e cobre a janela selecionável de até 60 dias; cancela requisições ao sair.
 - Limites de corpo por streaming: dados 32 KiB, consultoria 8 KiB, imagem 800.000 bytes. Não depende de Content-Length declarado pelo cliente.
 - Consultoria usa quotas atômicas existentes no Postgres: 10/IP/hora e 100/global/dia, independentemente de cold starts. Requisição Gemini abortada após 2,5s, uma tentativa no SDK, saída limitada a 600 tokens. Timeout não garante cancelamento de cobrança no provedor.
 - Pool mantém máximo de 3 conexões por instância, timeout de consulta 8s, de lock 3s e de transação ociosa 10s. Erros de conexão ociosa tratados sem revelar credenciais.

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { dateLabel, isSunday, minutes, overlaps, studioToday, times } from '../lib/schedule';
+import { dateLabel, minutes, overlaps, studioToday, times } from '../lib/schedule';
 import { addDays, ManagedBooking, statuses, weekDates } from '../lib/bookingOperations';
 const button = 'rounded border border-zinc-700 px-3 py-2 text-sm disabled:opacity-40';
 type Slot = {date: string; time: string; duration_minutes: number};
@@ -32,9 +32,9 @@ export function WeeklyAgenda({ date, revision, onSelect }: { date: string; revis
       const slot = data.slots.find(s => s.date===d && overlaps(minutes(time),60,minutes(s.time),s.duration_minutes));
       const booking = slot && data.bookings.find(b => b.date===d && b.time===slot.time);
       const block = data.blocks.some(b => b.date===d && overlaps(minutes(time),60,minutes(b.start_time),minutes(b.end_time)-minutes(b.start_time)));
-      const closed = isSunday(d); const unavailable = !!slot || block || closed;
+      const unavailable = !!slot || block;
       const past = d < studioToday();
-      const label = slot ? booking ? `${booking.client_name} · ${statuses[booking.status]}` : 'Ocupado' : closed ? 'Folga' : block ? 'Bloqueado' : past ? 'Sem agendamento' : 'Livre';
+      const label = slot ? booking ? `${booking.client_name} · ${statuses[booking.status]}` : 'Ocupado' : block ? 'Bloqueado' : past ? 'Sem agendamento' : 'Livre';
       return <td key={d}><button className={`w-full min-h-16 rounded p-2 text-left break-words ${slot ? 'bg-[#dec0b3]/15 text-[#dec0b3]' : unavailable || past ? 'bg-zinc-900 text-zinc-500' : 'bg-emerald-950/50 text-emerald-300 hover:bg-emerald-900/50'}`} onClick={() => onSelect(d, !unavailable && !past ? time : undefined)} aria-label={`${dateLabel(d)} às ${time}: ${label}`}>{label}</button></td>;
     })}</tr>)}</tbody></table></div>}
   </section>;

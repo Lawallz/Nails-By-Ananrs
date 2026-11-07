@@ -1,4 +1,5 @@
-import { durationMinutes, isSunday, minutes, overlaps, studioToday } from "../lib/schedule";
+import { durationMinutes, minutes, overlaps, studioToday } from "../lib/schedule";
+import { addDays } from "../lib/bookingOperations";
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Clock, Calendar as CalendarIcon, User, Phone, CheckCircle2, ArrowRight, ArrowLeft, Send } from "lucide-react";
 import emailjs from "@emailjs/browser";
@@ -57,9 +58,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
     if (step !== 2) return;
     let active = true;
     const controller = new AbortController();
-    const end = new Date(`${studioToday()}T12:00:00`);
-    end.setDate(end.getDate() + 12);
-    const lastDate = end.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+    const lastDate = addDays(studioToday(), 60);
     setLoadingAvailability(true);
     setAvailabilityError("");
     const fetchSlots = async () => {
@@ -122,7 +121,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
 
       return {
         time,
-        disabled: isSunday(selectedDate) || isOccupied || blockedSlots.some(b => b.date === selectedDate && overlaps(currentStart, serviceDuration, minutes(b.start_time), minutes(b.end_time) - minutes(b.start_time))) || loadingAvailability || !!availabilityError
+        disabled: isOccupied || blockedSlots.some(b => b.date === selectedDate && overlaps(currentStart, serviceDuration, minutes(b.start_time), minutes(b.end_time) - minutes(b.start_time))) || loadingAvailability || !!availabilityError
       };
     });
   }, [selectedDate, selectedService, existingBookings, blockedSlots, loadingAvailability, availabilityError]);
@@ -134,10 +133,9 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
   const calendarDays = useMemo(() => {
     const list = [];
     const dateObj = new Date(`${studioToday()}T12:00:00`);
-    for (let i = 1; i <= 12; i++) {
+    for (let i = 1; i <= 60; i++) {
       const future = new Date(dateObj);
       future.setDate(dateObj.getDate() + i);
-      if (future.getDay() === 0) continue;
       
       const dayName = future.toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "");
       const dayNum = future.getDate();
@@ -154,6 +152,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
     }
     return list;
   }, []);
+  const maxBookingDate = useMemo(() => addDays(studioToday(), 60), []);
 
   const handleNextStep = () => {
     if (step === 1 && selectedService) {
@@ -377,27 +376,10 @@ Aguardo a confirmação da agenda! Obrigada.`;
                   <CalendarIcon className="w-4 h-4 text-[#dec0b3]" />
                   Selecione o Dia:
                 </h3>
-                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2.5" id="wizard-calendar-grid">
-                  {calendarDays.map((day) => (
-                    <div
-                      key={day.id}
-                      id={`calendar-day-${day.id}`}
-                      onClick={() => {
-                        setSelectedDate(day.id);
-                        setSelectedTime("");
-                      }}
-                      className={`p-3.5 rounded text-center cursor-pointer transition-all flex flex-col justify-center gap-1 select-none ${
-                        selectedDate === day.id
-                          ? "bg-[#dec0b3] text-zinc-950 shadow-lg scale-102 border border-[#dec0b3]"
-                          : "bg-zinc-950 border border-zinc-900 text-zinc-400 hover:border-zinc-800 hover:text-white"
-                      }`}
-                    >
-                      <span className="text-[9px] tracking-widest uppercase font-bold text-current opacity-60 block leading-none">{day.weekday}</span>
-                      <span className="text-xl font-serif font-bold text-current block leading-none my-0.5">{day.number}</span>
-                      <span className="text-[9px] uppercase font-semibold text-current opacity-60 block leading-none">{day.month}</span>
-                    </div>
-                  ))}
-                </div>
+                <label className="block max-w-sm text-xs text-zinc-400">Data do atendimento
+                  <input id="wizard-calendar-date" type="date" min={addDays(studioToday(), 1)} max={maxBookingDate} value={selectedDate} onChange={event => { setSelectedDate(event.target.value); setSelectedTime(""); }} className="mt-2 block w-full rounded bg-zinc-950 border border-zinc-800 p-3 text-base text-white focus:border-[#dec0b3] focus:outline-none" />
+                </label>
+                <p className="text-xs text-zinc-500">Escolha uma data nos próximos 60 dias. Sábados e domingos também estão disponíveis.</p>
               </div>
 
               {/* Timeslot Choices Grid */}
