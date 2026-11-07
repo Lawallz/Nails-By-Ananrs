@@ -2,7 +2,6 @@ import { shiftMonth } from '../lib/bookingAnalytics';
 import { BookingOperations } from './BookingOperations';
 import { WeeklyAgenda } from './WeeklyAgenda';
 import { ManagedBooking, canEditSchedule, isInactive, reminderUrl, statuses } from '../lib/bookingOperations';
-import { AdminDashboard } from './AdminDashboard';
 import React, { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { confirmationUrl, dateLabel, durationMinutes, isSunday, minutes, overlaps, studioToday, times } from '../lib/schedule';
@@ -13,7 +12,8 @@ type Block = { id: string; date: string; start_time: string; end_time: string };
 const field = 'w-full rounded bg-zinc-900 border border-zinc-700 p-3 text-sm text-white';
 const button = 'rounded border border-zinc-700 px-3 py-2 text-sm hover:border-[#dec0b3] disabled:opacity-40';
 const empty = { service_id: '', date: '', time: '', client_name: '', client_phone: '' };
-export function AdminAgenda({ services }: { services: Service[] }) {
+type AgendaSection = 'calendar' | 'appointments' | 'new-booking' | 'blocks';
+export function AdminAgenda({ services, section, onNavigateToNewBooking }: { services: Service[]; section: AgendaSection; onNavigateToNewBooking: () => void }) {
   const [day, setDay] = useState(studioToday);
   const [month, setMonth] = useState(() => studioToday().slice(0, 7));
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -68,21 +68,25 @@ export function AdminAgenda({ services }: { services: Service[] }) {
     const m = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     setMonth(m); setDay(`${m}-01`);
   };
+  const selectDay = (date: string) => {
+    if (!date) return;
+    setDay(date); setShowAll(false);
+    const nextMonth = date.slice(0, 7);
+    if (nextMonth !== month) { monthRef.current = nextMonth; setMonth(nextMonth); }
+  };
   const edit = (b: Booking) => {
     if (!canEditSchedule(b.status)) return;
     setEditing(b); setForm(b); setError(''); setNotice('');
-    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    formRef.current?.querySelector('select')?.focus({ preventScroll: true });
+    onNavigateToNewBooking();
   };
   const repeat = (b: Booking) => {
     setEditing(null); setForm({ service_id: b.service_id, date: '', time: '', client_name: b.client_name, client_phone: b.client_phone });
     setNotice('Dados copiados para uma nova manutenção. Escolha a data e o horário.');
-    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    formRef.current?.querySelector<HTMLInputElement>('input[type="date"]')?.focus({ preventScroll: true });
+    onNavigateToNewBooking();
   };
   const selectWeek = (date: string, time?: string) => {
-    setDay(date); setMonth(date.slice(0, 7)); setShowAll(false);
-    if (time) { setEditing(null); setForm({ ...empty, date, time }); formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+    selectDay(date);
+    if (time) { setEditing(null); setForm({ ...empty, date, time }); onNavigateToNewBooking(); }
   };
   const save = (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,11 +107,17 @@ export function AdminAgenda({ services }: { services: Service[] }) {
   const visible = bookings.filter(b => (showAll || b.date === day) && (statusFilter === 'all' || b.status === statusFilter) && (!search || `${b.client_name} ${b.client_phone} ${b.service_name}`.toLocaleLowerCase('pt-BR').includes(search.toLocaleLowerCase('pt-BR'))));
   const first = new Date(`${month}-01T12:00:00`).getDay();
   const count = new Date(Number(month.slice(0, 4)), Number(month.slice(5)), 0).getDate();
-  return <section className="space-y-6" aria-label="Agenda do estúdio">
-    <AdminDashboard revision={revision} />
-    <h2 className="text-xl font-serif text-[#dec0b3]">Agenda do estúdio</h2>
+  const headings: Record<AgendaSection, string> = {
+    calendar: 'Calendário do estúdio',
+    appointments: 'Atendimentos',
+    'new-booking': editing ? 'Editar agendamento' : 'Novo agendamento',
+    blocks: 'Bloqueios da agenda',
+  };
+  return <section className="space-y-6" aria-label={headings[section]}>
+    <h2 className="text-xl font-serif text-[#dec0b3]">{headings[section]}</h2>
     {error && <p role="alert" className="text-rose-300">{error}</p>}
     {notice && <p role="status" className="text-emerald-300">{notice}</p>}
+    {section === 'calendar' && <>
     <div className="flex gap-2"><button className={button} aria-pressed={view === 'month'} onClick={() => setView('month')}>Calendário mensal</button><button className={button} aria-pressed={view === 'week'} onClick={() => setView('week')}>Agenda semanal</button></div>
     {view === 'week' ? <WeeklyAgenda date={day} revision={revision} onSelect={selectWeek} /> : <div className="rounded border border-zinc-800 p-3 sm:p-6 space-y-4">
       <div className="flex items-center justify-between gap-2">
@@ -122,13 +132,19 @@ export function AdminAgenda({ services }: { services: Service[] }) {
           const date = `${month}-${String(i + 1).padStart(2, '0')}`;
           const n = bookings.filter(b => b.date === date && !isInactive(b.status)).length;
           const blocked = blocks.some(b => b.date === date);
-          return <button key={date} disabled={loading} aria-pressed={day === date} aria-label={`${dateLabel(date)}, ${n} agendamentos${blocked ? ', com bloqueio' : ''}${isSunday(date) ? ', folga' : ''}`} onClick={() => { setDay(date); setShowAll(false); }} className={`min-h-16 rounded border p-1 ${day === date ? 'border-[#dec0b3] bg-[#dec0b3]/15' : 'border-zinc-800'} ${isSunday(date) ? 'text-zinc-500' : ''}`}><span>{i + 1}</span><span className="block text-[10px] text-[#dec0b3]">{n > 0 ? `${n} ag.` : ''}</span><span className="block text-[9px] text-amber-300">{blocked ? 'Bloq.' : isSunday(date) ? 'Folga' : ''}</span></button>;
+          return <button key={date} disabled={loading} aria-pressed={day === date} aria-label={`${dateLabel(date)}, ${n} agendamentos${blocked ? ', com bloqueio' : ''}${isSunday(date) ? ', folga' : ''}`} onClick={() => selectDay(date)} className={`min-h-16 rounded border p-1 ${day === date ? 'border-[#dec0b3] bg-[#dec0b3]/15' : 'border-zinc-800'} ${isSunday(date) ? 'text-zinc-500' : ''}`}><span>{i + 1}</span><span className="block text-[10px] text-[#dec0b3]">{n > 0 ? `${n} ag.` : ''}</span><span className="block text-[9px] text-amber-300">{blocked ? 'Bloq.' : isSunday(date) ? 'Folga' : ''}</span></button>;
         })}
       </div>
       <p className="text-xs text-zinc-400">Clique em uma data para consultar os agendamentos. Domingos são folga.</p>
     </div>}
-    <div className="flex flex-wrap justify-between gap-3 items-center"><h3>Agendamentos — {showAll ? 'mês inteiro' : dateLabel(day)}</h3><button className={button} onClick={() => setShowAll(v => !v)}>{showAll ? 'Ver somente o dia' : 'Ver mês inteiro'}</button><button className={button} disabled={loading || busy} onClick={() => { setError(''); void load(); }}>Atualizar agenda</button></div>
-    <div className="grid sm:grid-cols-2 gap-3"><label className="text-sm">Filtrar status<select className={field} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}><option value="all">Todos os status</option>{Object.entries(statuses).map(([key,label]) => <option key={key} value={key}>{label}</option>)}</select></label><label className="text-sm">Buscar nos agendamentos exibidos<input className={field} value={search} onChange={e => setSearch(e.target.value)} placeholder="Nome, WhatsApp ou serviço" /></label></div>
+    </>}
+    {section === 'appointments' && <>
+    <div className="flex flex-wrap items-end justify-between gap-3">
+      <label className="text-sm text-zinc-300">Data selecionada<input className={`${field} mt-1`} type="date" value={day} onChange={e => selectDay(e.target.value)} /></label>
+      <div className="flex flex-wrap gap-2"><button className={button} onClick={() => setShowAll(v => !v)}>{showAll ? 'Ver somente o dia' : 'Ver mês inteiro'}</button><button className={button} disabled={loading || busy} onClick={() => { setError(''); void load(); }}>Atualizar atendimentos</button></div>
+    </div>
+    <div className="flex flex-wrap items-center justify-between gap-3"><h3>Atendimentos — {showAll ? new Date(`${month}-01T12:00:00`).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }) : dateLabel(day)}</h3><label className="text-sm">Filtrar status<select className={`${field} mt-1`} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}><option value="all">Todos os status</option>{Object.entries(statuses).map(([key,label]) => <option key={key} value={key}>{label}</option>)}</select></label></div>
+    <label className="block text-sm">Buscar cliente, WhatsApp ou serviço<input className={`${field} mt-1`} value={search} onChange={e => setSearch(e.target.value)} placeholder="Digite um nome, telefone ou serviço" /></label>
     {loading ? <p role="status">Carregando agenda…</p> : visible.length === 0 ? <p className="text-zinc-400 text-sm">Nenhum agendamento neste período.</p> : <div className="grid md:grid-cols-2 gap-4">{visible.map(b => {
       const url = confirmationUrl(b);
       const reminder = reminderUrl(b);
@@ -147,6 +163,8 @@ export function AdminAgenda({ services }: { services: Service[] }) {
       </article>;
     })}</div>}
     <p className="text-xs text-zinc-500">A confirmação abre a conversa com a mensagem pronta. Revise e toque em enviar no WhatsApp.</p>
+    </>}
+    {section === 'new-booking' && <>
     <form ref={formRef} onSubmit={save} className="rounded border border-zinc-800 p-5 space-y-4">
       <h3 className="text-[#dec0b3]">{editing ? 'Editar agendamento' : 'Novo agendamento'}</h3>
       <fieldset disabled={busy} className="grid sm:grid-cols-2 gap-4">
@@ -161,16 +179,20 @@ export function AdminAgenda({ services }: { services: Service[] }) {
       </fieldset>
       <div className="flex gap-3"><button className={`${button} bg-[#dec0b3] text-zinc-950`} disabled={busy || loading} type="submit">{busy ? 'Salvando…' : editing ? 'Salvar alterações' : 'Criar agendamento'}</button>{editing && <button type="button" className={button} disabled={busy} onClick={() => { setEditing(null); setForm(empty); }}>Cancelar edição</button>}</div>
     </form>
+    </>}
+    {section === 'blocks' && <>
     <form className="rounded border border-zinc-800 p-5 space-y-4" onSubmit={e => { e.preventDefault(); void run(async () => {
       const { error } = await supabase.from('schedule_blocks').insert({ date: day, start_time: allDay ? '00:00' : blockStart, end_time: allDay ? '24:00' : blockEnd });
       if (error) throw error; setNotice('Período bloqueado na agenda pública.');
     }); }}>
       <h3 className="text-[#dec0b3]">Bloquear agenda — {dateLabel(day)}</h3>
-      <p className="text-xs text-zinc-400">Selecione o dia no calendário. Bloqueios que coincidam com agendamentos existentes serão recusados; reagende as clientes primeiro.</p>
+      <label className="block text-sm">Data do bloqueio<input type="date" min={studioToday()} className={`${field} mt-1`} value={day} onChange={e => selectDay(e.target.value)} /></label>
+      <p className="text-xs text-zinc-400">Bloqueios que coincidam com agendamentos existentes serão recusados; reagende as clientes primeiro.</p>
       <label className="flex gap-2 text-sm"><input type="checkbox" checked={allDay} onChange={e => setAllDay(e.target.checked)} /> Dia inteiro</label>
       {!allDay && <div className="grid grid-cols-2 gap-3"><label>Início<input type="time" className={field} required value={blockStart} onChange={e => setBlockStart(e.target.value)} /></label><label>Fim<input type="time" className={field} required value={blockEnd} onChange={e => setBlockEnd(e.target.value)} /></label></div>}
       <button className={button} disabled={busy || loading || day < studioToday()}>Bloquear período</button>
       {blocks.filter(b => b.date === day).map(b => <div key={b.id} className="flex flex-wrap items-center gap-3 text-sm"><span>{b.start_time === '00:00' && b.end_time === '24:00' ? 'Dia inteiro bloqueado' : `${b.start_time}–${b.end_time} bloqueado`}</span><button type="button" className={button} disabled={busy} onClick={() => { if (confirm('Liberar este período para novos agendamentos?')) void run(async () => { const { error, data } = await supabase.from('schedule_blocks').delete().eq('id', b.id).select('id').single(); if (error) throw error; if (!data) throw new Error('Bloqueio não removido.'); setNotice('Período liberado.'); }); }}>Desbloquear</button></div>)}
     </form>
+    </>}
   </section>;
 }
