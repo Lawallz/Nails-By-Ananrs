@@ -1,4 +1,4 @@
-import { durationMinutes, isSunday, minutes, overlaps, studioToday } from "../lib/schedule";
+import { durationMinutes, isClosedSunday, minutes, overlaps, studioToday, timesForDate } from "../lib/schedule";
 import { addDays } from "../lib/bookingOperations";
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Clock, Calendar as CalendarIcon, User, Phone, CheckCircle2, ArrowRight, ArrowLeft, Send } from "lucide-react";
@@ -91,8 +91,6 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
     }
   }, [preselectedService]);
 
-  const baseTimeslots = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00"];
-
   const timeToMinutes = (timeStr: string): number => {
     const [hrs, mins] = timeStr.split(":").map(Number);
     return hrs * 60 + mins;
@@ -106,7 +104,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
     const bookingsToday = existingBookings.filter(b => b.date === selectedDate);
     const serviceDuration = parseDuration(selectedService.duration);
 
-    return baseTimeslots.map(time => {
+    return timesForDate(selectedDate).map(time => {
       const currentStart = timeToMinutes(time);
       const currentEnd = currentStart + serviceDuration;
 
@@ -121,7 +119,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
 
       return {
         time,
-        disabled: isSunday(selectedDate) || isOccupied || blockedSlots.some(b => b.date === selectedDate && overlaps(currentStart, serviceDuration, minutes(b.start_time), minutes(b.end_time) - minutes(b.start_time))) || loadingAvailability || !!availabilityError
+        disabled: isClosedSunday(selectedDate) || isOccupied || blockedSlots.some(b => b.date === selectedDate && overlaps(currentStart, serviceDuration, minutes(b.start_time), minutes(b.end_time) - minutes(b.start_time))) || loadingAvailability || !!availabilityError
       };
     });
   }, [selectedDate, selectedService, existingBookings, blockedSlots, loadingAvailability, availabilityError]);
@@ -136,7 +134,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
     for (let i = 1; i <= 60; i++) {
       const future = new Date(dateObj);
       future.setDate(dateObj.getDate() + i);
-      if (future.getDay() === 0) continue;
+      if (future.getDay() === 0 && future.getMonth() !== 11) continue;
       
       const dayName = future.toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "");
       const dayNum = future.getDate();
