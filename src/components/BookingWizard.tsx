@@ -1,4 +1,5 @@
 import { durationMinutes, isSunday, minutes, overlaps, studioToday } from "../lib/schedule";
+import { addDays } from "../lib/bookingOperations";
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Clock, Calendar as CalendarIcon, User, Phone, CheckCircle2, ArrowRight, ArrowLeft, Send } from "lucide-react";
 import emailjs from "@emailjs/browser";
@@ -57,9 +58,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
     if (step !== 2) return;
     let active = true;
     const controller = new AbortController();
-    const end = new Date(`${studioToday()}T12:00:00`);
-    end.setDate(end.getDate() + 12);
-    const lastDate = end.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+    const lastDate = addDays(studioToday(), 60);
     setLoadingAvailability(true);
     setAvailabilityError("");
     const fetchSlots = async () => {
@@ -134,7 +133,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
   const calendarDays = useMemo(() => {
     const list = [];
     const dateObj = new Date(`${studioToday()}T12:00:00`);
-    for (let i = 1; i <= 12; i++) {
+    for (let i = 1; i <= 60; i++) {
       const future = new Date(dateObj);
       future.setDate(dateObj.getDate() + i);
       if (future.getDay() === 0) continue;
@@ -382,10 +381,7 @@ Aguardo a confirmação da agenda! Obrigada.`;
                     <div
                       key={day.id}
                       id={`calendar-day-${day.id}`}
-                      onClick={() => {
-                        setSelectedDate(day.id);
-                        setSelectedTime("");
-                      }}
+                      onClick={() => { setSelectedDate(day.id); setSelectedTime(""); }}
                       className={`p-3.5 rounded text-center cursor-pointer transition-all flex flex-col justify-center gap-1 select-none ${
                         selectedDate === day.id
                           ? "bg-[#dec0b3] text-zinc-950 shadow-lg scale-102 border border-[#dec0b3]"
@@ -398,6 +394,7 @@ Aguardo a confirmação da agenda! Obrigada.`;
                     </div>
                   ))}
                 </div>
+                <p className="text-xs text-zinc-500">Escolha uma data disponível nos próximos 60 dias.</p>
               </div>
 
               {/* Timeslot Choices Grid */}
