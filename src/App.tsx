@@ -204,7 +204,7 @@ export default function App() {
             <span className="text-[#e2c56f]">Artistry in Every Detail.</span>
           </div>
           <address className="not-italic text-zinc-300">Rua Julio de Mesquita, 658, São Bernardo do Campo</address>
-          <p className="text-zinc-400">Atendimento de segunda a sábado, com agendamento. Domingo: fechado.</p>
+          <p className="text-zinc-400">Atendimento com agendamento de segunda a sábado. Em dezembro, também aos domingos, das 7h às 22h.</p>
           <p className="max-w-lg mx-auto leading-relaxed">
             Desenvolvido com sofisticação. Nossa biossegurança de autoclaves protege o seu estilo de vida enquanto restauramos e adornamos a beleza de suas mãos.
           </p>
