@@ -33,9 +33,10 @@ begin
     update public.bookings set time='11:00' where id='__agenda_test_booking';
     raise exception 'Service overlapping block was accepted';
   exception when sqlstate 'PT409' then null; end;
-  update public.bookings set date=sunday where id='__agenda_test_booking';
-  if not exists(select 1 from public.booking_slots where booking_id='__agenda_test_booking' and date=sunday) then raise exception 'Weekend booking slot did not sync'; end if;
-  update public.bookings set date=d where id='__agenda_test_booking';
+  begin
+    update public.bookings set date=sunday where id='__agenda_test_booking';
+    raise exception 'Sunday accepted';
+  exception when sqlstate 'PT400' then null; end;
   insert into public.bookings(id,service_id,date,time,client_name,client_phone)
   values('__agenda_test_booking2','__agenda_test_service',d,'15:00','Cliente Teste','11999999999');
   begin

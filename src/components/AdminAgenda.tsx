@@ -4,7 +4,7 @@ import { WeeklyAgenda } from './WeeklyAgenda';
 import { ManagedBooking, canEditSchedule, isInactive, reminderUrl, statuses } from '../lib/bookingOperations';
 import React, { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { confirmationUrl, dateLabel, durationMinutes, minutes, overlaps, studioToday, times } from '../lib/schedule';
+import { confirmationUrl, dateLabel, durationMinutes, isSunday, minutes, overlaps, studioToday, times } from '../lib/schedule';
 
 type Service = { id: string; name: string; price: number; duration: string; description?: string };
 type Booking = ManagedBooking;
@@ -91,6 +91,7 @@ export function AdminAgenda({ services, section, onNavigateToNewBooking }: { ser
   const save = (e: React.FormEvent) => {
     e.preventDefault();
     void run(async () => {
+      if (isSunday(form.date)) throw new Error('Domingo é folga. Escolha de segunda a sábado.');
       const service = services.find(s => s.id === form.service_id);
       if (!service) throw new Error('Selecione um serviço disponível.');
       const fields = { service_id: service.id, service_name: service.name, price: service.price, date: form.date, time: form.time, client_name: form.client_name.trim(), client_phone: form.client_phone.trim() };
@@ -131,10 +132,10 @@ export function AdminAgenda({ services, section, onNavigateToNewBooking }: { ser
           const date = `${month}-${String(i + 1).padStart(2, '0')}`;
           const n = bookings.filter(b => b.date === date && !isInactive(b.status)).length;
           const blocked = blocks.some(b => b.date === date);
-          return <button key={date} disabled={loading} aria-pressed={day === date} aria-label={`${dateLabel(date)}, ${n} agendamentos${blocked ? ', com bloqueio' : ''}`} onClick={() => selectDay(date)} className={`min-h-16 rounded border p-1 ${day === date ? 'border-[#dec0b3] bg-[#dec0b3]/15' : 'border-zinc-800'}`}><span>{i + 1}</span><span className="block text-[10px] text-[#dec0b3]">{n > 0 ? `${n} ag.` : ''}</span><span className="block text-[9px] text-amber-300">{blocked ? 'Bloq.' : ''}</span></button>;
+          return <button key={date} disabled={loading} aria-pressed={day === date} aria-label={`${dateLabel(date)}, ${n} agendamentos${blocked ? ', com bloqueio' : ''}${isSunday(date) ? ', folga' : ''}`} onClick={() => selectDay(date)} className={`min-h-16 rounded border p-1 ${day === date ? 'border-[#dec0b3] bg-[#dec0b3]/15' : 'border-zinc-800'} ${isSunday(date) ? 'text-zinc-500' : ''}`}><span>{i + 1}</span><span className="block text-[10px] text-[#dec0b3]">{n > 0 ? `${n} ag.` : ''}</span><span className="block text-[9px] text-amber-300">{blocked ? 'Bloq.' : isSunday(date) ? 'Folga' : ''}</span></button>;
         })}
       </div>
-      <p className="text-xs text-zinc-400">Clique em uma data para consultar os agendamentos.</p>
+      <p className="text-xs text-zinc-400">Clique em uma data para consultar os agendamentos. Domingos são folga.</p>
     </div>}
     </>}
     {section === 'appointments' && <>
@@ -171,7 +172,7 @@ export function AdminAgenda({ services, section, onNavigateToNewBooking }: { ser
         <label className="text-sm">Data<input className={field} type="date" required min={studioToday()} value={form.date} onChange={e => setForm({ ...form, date: e.target.value, time: '' })} /></label>
         <label className="text-sm">Horário<select className={field} required value={form.time} onChange={e => setForm({ ...form, time: e.target.value })}><option value="">Selecione</option>{times.map(t => {
           const occupied = form.date.slice(0, 7) === month && (slots.some(s => s.date === form.date && !(editing && s.date === editing.date && s.time === editing.time) && overlaps(minutes(t), durationMinutes(service?.duration || '60'), minutes(s.time), s.duration_minutes)) || blocks.some(b => b.date === form.date && overlaps(minutes(t), durationMinutes(service?.duration || '60'), minutes(b.start_time), minutes(b.end_time) - minutes(b.start_time))));
-          return <option key={t} disabled={occupied} value={t}>{t}{occupied ? ' — indisponível' : ''}</option>;
+          return <option key={t} disabled={occupied || isSunday(form.date)} value={t}>{t}{occupied ? ' — indisponível' : ''}</option>;
         })}</select></label>
         <label className="text-sm">Nome da cliente<input className={field} required minLength={2} maxLength={120} value={form.client_name} onChange={e => setForm({ ...form, client_name: e.target.value })} /></label>
         <label className="text-sm">WhatsApp<input className={field} type="tel" required maxLength={30} value={form.client_phone} onChange={e => setForm({ ...form, client_phone: e.target.value })} /></label>
