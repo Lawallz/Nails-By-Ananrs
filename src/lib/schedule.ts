@@ -11,7 +11,7 @@ export const durationMinutes = (value: string) => {
   return Math.max(1, Math.min(720, hours ? Number(hours[1]) * 60 + Number(mins?.[1] || value.match(/h\s*(\d+)/i)?.[1] || 0) : Number(mins?.[1] || value.match(/\d+/)?.[0] || 60)));
 };
 const makeTimes = (start: number, end: number) => Array.from({ length: end - start + 1 }, (_, i) => `${String(i + start).padStart(2, '0')}:00`);
-export const times = makeTimes(9, 19);
+export const times = ['09:30', '14:30', '17:00'];
 export const timesForDate = (date: string) => isDecemberSchedule(date) ? makeTimes(7, 22) : times;
 export const overlaps = (start: number, duration: number, otherStart: number, otherDuration: number) => start < otherStart + otherDuration && start + duration > otherStart;
 export function confirmationUrl(b: {client_name: string; client_phone: string; service_name: string; date: string; time: string}) {
