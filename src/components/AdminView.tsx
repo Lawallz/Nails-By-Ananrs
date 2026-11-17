@@ -135,7 +135,7 @@ export const AdminView: React.FC = () => {
         <p className="text-xs text-zinc-500 animate-pulse">Carregando dados da nuvem...</p>
       ) : (
         <div className="grid lg:grid-cols-[240px_minmax(0,1fr)] gap-6 lg:gap-10 items-start">
-          <nav aria-label="Navegação do painel" className="lg:sticky lg:top-6 grid grid-cols-2 lg:grid-cols-1 gap-2 rounded-xl border border-zinc-800 bg-zinc-950/70 p-2">
+          <nav aria-label="Navegação do painel" className="lg:sticky lg:top-6 lg:self-start grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-1 gap-2 rounded-xl border border-zinc-800 bg-zinc-950/70 p-2">
             {[
               { id: "overview" as const, label: "Resumo", icon: LayoutDashboard },
               { id: "calendar" as const, label: "Calendário", icon: CalendarDays },
@@ -145,8 +145,8 @@ export const AdminView: React.FC = () => {
               { id: "finance" as const, label: "Financeiro", icon: Wallet },
               { id: "services" as const, label: "Serviços", icon: BriefcaseBusiness },
             ].map(({ id, label, icon: Icon }) => (
-              <button key={id} type="button" onClick={() => setActiveSection(id)} aria-current={activeSection === id ? "page" : undefined} className={`flex min-w-0 items-center justify-center lg:justify-start gap-2.5 rounded-lg px-3 py-3 text-xs sm:text-sm font-medium transition-colors ${activeSection === id ? "bg-[#dec0b3] text-zinc-950" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"}`}>
-                <Icon className="w-4 h-4 shrink-0" /><span>{label}</span>
+              <button key={id} type="button" onClick={() => setActiveSection(id)} aria-current={activeSection === id ? "page" : undefined} className={`flex min-w-0 items-center justify-center lg:justify-start gap-2.5 rounded-lg px-3 py-3 text-xs sm:text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#dec0b3] ${activeSection === id ? "bg-[#dec0b3] text-zinc-950" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"}`}>
+                <Icon aria-hidden="true" className="w-4 h-4 shrink-0" /><span>{label}</span>
               </button>
             ))}
           </nav>
@@ -166,9 +166,9 @@ export const AdminView: React.FC = () => {
               <DollarSign className="w-5 h-5" /> Catálogo de Serviços & Preços
             </h2>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
               
-              <form ref={formRef} onSubmit={handleAddService} className="lg:col-span-5 bg-zinc-950 border border-zinc-900 p-6 rounded space-y-4">
+              <form ref={formRef} onSubmit={handleAddService} className="xl:col-span-5 bg-zinc-950 border border-zinc-900 p-6 rounded space-y-4">
                 <h3 className="text-xs uppercase tracking-widest font-bold text-zinc-300 border-b border-zinc-900 pb-2">{editingId ? "Editar serviço" : "Adicionar serviço"}</h3>
                 
                 <fieldset disabled={saving} className="space-y-4 disabled:opacity-60">
@@ -226,7 +226,7 @@ export const AdminView: React.FC = () => {
                 </fieldset>
               </form>
 
-              <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="xl:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {services.length === 0 ? (
                   <div className="sm:col-span-2 p-6 bg-zinc-950 border border-zinc-900 rounded text-center text-zinc-500 text-xs">
                     Nenhum serviço cadastrado na nuvem ainda. Adicione ao lado!
