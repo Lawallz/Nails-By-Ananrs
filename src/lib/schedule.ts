@@ -11,9 +11,35 @@ export const durationMinutes = (value: string) => {
   return Math.max(1, Math.min(720, hours ? Number(hours[1]) * 60 + Number(mins?.[1] || value.match(/h\s*(\d+)/i)?.[1] || 0) : Number(mins?.[1] || value.match(/\d+/)?.[0] || 60)));
 };
 const makeTimes = (start: number, end: number) => Array.from({ length: end - start + 1 }, (_, i) => `${String(i + start).padStart(2, '0')}:00`);
-export const times = ['09:30', '14:30', '17:00'];
+export const times = makeTimes(9, 19);
 export const timesForDate = (date: string) => isDecemberSchedule(date) ? makeTimes(7, 22) : times;
 export const overlaps = (start: number, duration: number, otherStart: number, otherDuration: number) => start < otherStart + otherDuration && start + duration > otherStart;
+export function bookingTimes(
+  date: string,
+  serviceDuration: number,
+  bookings: { time: string; duration_minutes: number }[],
+  blocks: { start_time: string; end_time: string }[],
+) {
+  const buffer = 20;
+  const baseTimes = timesForDate(date).map(minutes);
+  const bookedIntervals = bookings.map(booking => ({
+    start: minutes(booking.time),
+    duration: Number(booking.duration_minutes) + buffer,
+  }));
+  const starts = [...new Set([
+    ...baseTimes,
+    ...bookedIntervals.map(({ start, duration }) => start + duration),
+  ])].filter(start => start >= baseTimes[0] && start <= baseTimes[baseTimes.length - 1])
+    .sort((a, b) => a - b);
+
+  return starts.map(start => ({
+    time: `${String(Math.floor(start / 60)).padStart(2, '0')}:${String(start % 60).padStart(2, '0')}`,
+    disabled: isClosedSunday(date) ||
+      bookedIntervals.some(booking => overlaps(start, serviceDuration + buffer, booking.start, booking.duration)) ||
+      blocks.some(block => overlaps(start, serviceDuration, minutes(block.start_time), minutes(block.end_time) - minutes(block.start_time))),
+  }));
+}
+
 export function confirmationUrl(b: {client_name: string; client_phone: string; service_name: string; date: string; time: string}) {
   let phone = b.client_phone.replace(/\D/g, '');
   if (phone.length === 10 || phone.length === 11) phone = `55${phone}`;
