@@ -1,4 +1,4 @@
-import { durationMinutes, isClosedSunday, minutes, overlaps, studioToday, timesForDate } from "../lib/schedule";
+import { bookingTimes, durationMinutes, studioToday } from "../lib/schedule";
 import { addDays } from "../lib/bookingOperations";
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Clock, Calendar as CalendarIcon, User, Phone, CheckCircle2, ArrowRight, ArrowLeft, Send } from "lucide-react";
@@ -91,41 +91,19 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
     }
   }, [preselectedService]);
 
-  const timeToMinutes = (timeStr: string): number => {
-    const [hrs, mins] = timeStr.split(":").map(Number);
-    return hrs * 60 + mins;
-  };
-
-  const parseDuration = durationMinutes;
-
   const validatedTimeslots = useMemo(() => {
     if (!selectedDate || !selectedService) return [];
 
-    const bookingsToday = existingBookings.filter(b => b.date === selectedDate);
-    const serviceDuration = parseDuration(selectedService.duration);
-
-    return timesForDate(selectedDate).map(time => {
-      const currentStart = timeToMinutes(time);
-      const currentEnd = currentStart + serviceDuration;
-
-      const isOccupied = bookingsToday.some(booking => {
-        const bookedDuration = booking.duration_minutes;
-        
-        const bookedStart = timeToMinutes(booking.time);
-        const bookedEnd = bookedStart + bookedDuration;
-
-        return currentStart < bookedEnd && currentEnd > bookedStart;
-      });
-
-      return {
-        time,
-        disabled: isClosedSunday(selectedDate) || isOccupied || blockedSlots.some(b => b.date === selectedDate && overlaps(currentStart, serviceDuration, minutes(b.start_time), minutes(b.end_time) - minutes(b.start_time))) || loadingAvailability || !!availabilityError
-      };
-    });
+    return bookingTimes(
+      selectedDate,
+      durationMinutes(selectedService.duration),
+      existingBookings.filter(booking => booking.date === selectedDate),
+      blockedSlots.filter(block => block.date === selectedDate),
+    ).map(slot => ({ ...slot, disabled: slot.disabled || loadingAvailability || !!availabilityError }));
   }, [selectedDate, selectedService, existingBookings, blockedSlots, loadingAvailability, availabilityError]);
 
   useEffect(() => {
-    if (step === 2 && !loadingAvailability && !availabilityError && selectedTime && validatedTimeslots.some(slot => slot.time === selectedTime && slot.disabled)) setSelectedTime("");
+    if (step === 2 && !loadingAvailability && !availabilityError && selectedTime && !validatedTimeslots.some(slot => slot.time === selectedTime && !slot.disabled)) setSelectedTime("");
   }, [validatedTimeslots, selectedTime, step, loadingAvailability, availabilityError]);
 
   const calendarDays = useMemo(() => {
