@@ -4,7 +4,7 @@ import { WeeklyAgenda } from './WeeklyAgenda';
 import { ManagedBooking, canEditSchedule, isInactive, reminderUrl, statuses } from '../lib/bookingOperations';
 import React, { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { confirmationUrl, dateLabel, durationMinutes, isClosedSunday, minutes, overlaps, studioToday, timesForDate } from '../lib/schedule';
+import { confirmationUrl, bookingTimes, dateLabel, durationMinutes, isClosedSunday, studioToday } from '../lib/schedule';
 
 type Service = { id: string; name: string; price: number; duration: string; description?: string };
 type Booking = ManagedBooking;
@@ -170,10 +170,12 @@ export function AdminAgenda({ services, section, onNavigateToNewBooking }: { ser
       <fieldset disabled={busy} className="grid sm:grid-cols-2 gap-4">
         <label className="text-sm">Serviço<select className={field} required value={form.service_id} onChange={e => setForm({ ...form, service_id: e.target.value })}><option value="">Selecione</option>{!services.some(s => s.id === form.service_id) && form.service_id && <option value={form.service_id} disabled>Serviço removido — selecione outro</option>}{services.map(s => <option key={s.id} value={s.id}>{s.name} — R$ {s.price}</option>)}</select>{service && <span className="block mt-2 text-xs text-zinc-400 break-words">{service.name} · {service.duration}</span>}</label>
         <label className="text-sm">Data<input className={field} type="date" required min={studioToday()} value={form.date} onChange={e => setForm({ ...form, date: e.target.value, time: '' })} /></label>
-        <label className="text-sm">Horário<select className={field} required value={form.time} onChange={e => setForm({ ...form, time: e.target.value })}><option value="">Selecione</option>{timesForDate(form.date).map(t => {
-          const occupied = form.date.slice(0, 7) === month && (slots.some(s => s.date === form.date && !(editing && s.date === editing.date && s.time === editing.time) && overlaps(minutes(t), durationMinutes(service?.duration || '60'), minutes(s.time), s.duration_minutes)) || blocks.some(b => b.date === form.date && overlaps(minutes(t), durationMinutes(service?.duration || '60'), minutes(b.start_time), minutes(b.end_time) - minutes(b.start_time))));
-          return <option key={t} disabled={occupied || isClosedSunday(form.date)} value={t}>{t}{occupied ? ' — indisponível' : ''}</option>;
-        })}</select></label>
+        <label className="text-sm">Horário<select className={field} required value={form.time} onChange={e => setForm({ ...form, time: e.target.value })}><option value="">Selecione</option>{bookingTimes(
+          form.date,
+          durationMinutes(service?.duration || '60'),
+          slots.filter(slot => slot.date === form.date && !(editing && slot.date === editing.date && slot.time === editing.time)),
+          blocks.filter(block => block.date === form.date),
+        ).map(slot => <option key={slot.time} disabled={slot.disabled} value={slot.time}>{slot.time}{slot.disabled ? ' — indisponível' : ''}</option>)}</select></label>
         <label className="text-sm">Nome da cliente<input className={field} required minLength={2} maxLength={120} value={form.client_name} onChange={e => setForm({ ...form, client_name: e.target.value })} /></label>
         <label className="text-sm">WhatsApp<input className={field} type="tel" required maxLength={30} value={form.client_phone} onChange={e => setForm({ ...form, client_phone: e.target.value })} /></label>
       </fieldset>
