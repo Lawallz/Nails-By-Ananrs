@@ -1,5 +1,4 @@
 import type { PoolClient } from 'pg';
-import { isClosedSunday, timesForDate } from '../src/lib/schedule.js';
 const readable: Record<string, string[]> = {
   services: ['id','name','price','duration','image','created_at','description'],
   ai_color_catalog: ['id','name','hex','created_at'],
@@ -46,13 +45,6 @@ export async function executeQuery(db: PoolClient, input:Query, admin:boolean) {
     const keys=Object.keys(input.values);
     const allowed = !admin && table==='bookings' ? ['id','service_id','service_name','price','date','time','client_name','client_phone'] : writable[table];
     if(!keys.length||keys.some(k=>!allowed.includes(k)))fail(403,'Campos não permitidos.');
-    if (!admin && table === 'bookings' && action === 'insert') {
-      const { date, time } = input.values!;
-      if (
-        typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
-        typeof time !== 'string' || isClosedSunday(date) || !timesForDate(date).includes(time)
-      ) fail(400, 'Horário indisponível para agendamento.');
-    }
     if(action==='update' && keys.includes('id'))fail(400,'Identificador imutável.');
     sql=action==='insert' ? `INSERT INTO public.${q(table)} (${keys.map(q).join(',')}) VALUES (${keys.map(k=>param(input.values![k])).join(',')})` : `UPDATE public.${q(table)} SET ${keys.map(k=>q(k)+'='+param(input.values![k])).join(',')}`;
   } else sql=`DELETE FROM public.${q(table)}`;
