@@ -57,8 +57,11 @@ export function BookingOperations({ booking, onChanged }: { booking: ManagedBook
   };
   return <div className="space-y-3 border-t border-zinc-800 pt-3">
     <div className="flex flex-wrap gap-2">{(['status','payments','history'] as const).map(p => <button key={p} type="button" className={button} disabled={busy} aria-expanded={panel === p} onClick={() => { setPanel(panel === p ? null : p); setError(''); setNotice(''); }}>{p === 'status' ? 'Status e observações' : p === 'payments' ? 'Pagamentos' : 'Histórico da cliente'}</button>)}</div>
+    {!isInactive(booking.status) && <button type="button" className={button} disabled={busy} onClick={() => {
+      setPanel('payments'); setKind('deposit'); setAmount(''); setPaymentNote('Sinal de dezembro'); setError(''); setNotice('');
+    }}>Registrar sinal de dezembro</button>}
     {booking.status !== 'cancelled' && <button type="button" className={`${button} text-rose-300`} disabled={busy} onClick={() => { setPanel('status'); setStatus('cancelled'); }}>Cancelar atendimento</button>}
-    <p className="text-xs text-zinc-400">Recebido líquido: {money(Number(booking.paid_amount || 0))} · Pendente: {money(outstanding(booking))}</p>
+    <p className="text-xs text-zinc-400">Recebido líquido: {money(Number(booking.paid_amount || 0))} · Falta cobrar: {money(outstanding(booking))}</p>
     {error && <p role="alert" className="text-sm text-rose-300">{error}</p>}{notice && <p role="status" className="text-sm text-emerald-300">{notice}</p>}
     {panel === 'status' && <form className="space-y-3" onSubmit={e => { e.preventDefault(); void save(async () => {
       if (status === 'cancelled' && !reason.trim()) throw new Error('Informe o motivo do cancelamento.');
@@ -73,6 +76,7 @@ export function BookingOperations({ booking, onChanged }: { booking: ManagedBook
       <p className="text-xs text-zinc-500">Cancelamento e falta liberam o horário. Reativar depende da disponibilidade. Abrir o WhatsApp não altera o status automaticamente.</p>
     </form>}
     {panel === 'payments' && <div className="space-y-4">
+      {kind === 'deposit' && <p className="text-sm text-amber-200">O sinal recebido será abatido do valor a cobrar neste atendimento. Confira os lançamentos abaixo antes de registrar.</p>}
       <form className="space-y-3" onSubmit={e => { e.preventDefault(); void save(async () => {
         const value = Number(amount.replace(',', '.')); if (!Number.isFinite(value) || value <= 0) throw new Error('Informe um valor maior que zero.');
         const { error } = await supabase.from('booking_payments').insert({ id: crypto.randomUUID(), booking_id: booking.id, amount: value, kind, method, paid_on: paidOn, note: paymentNote.trim() });
