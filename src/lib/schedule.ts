@@ -20,11 +20,10 @@ export function bookingTimes(
   bookings: { time: string; duration_minutes: number }[],
   blocks: { start_time: string; end_time: string }[],
 ) {
-  const buffer = 20;
   const baseTimes = timesForDate(date).map(minutes);
   const bookedIntervals = bookings.map(booking => ({
     start: minutes(booking.time),
-    duration: Number(booking.duration_minutes) + buffer,
+    duration: Number(booking.duration_minutes),
   }));
   const starts = [...new Set([
     ...baseTimes,
@@ -35,7 +34,7 @@ export function bookingTimes(
   return starts.map(start => ({
     time: `${String(Math.floor(start / 60)).padStart(2, '0')}:${String(start % 60).padStart(2, '0')}`,
     disabled: isClosedSunday(date) ||
-      bookedIntervals.some(booking => overlaps(start, serviceDuration + buffer, booking.start, booking.duration)) ||
+      bookedIntervals.some(booking => overlaps(start, serviceDuration, booking.start, booking.duration)) ||
       blocks.some(block => overlaps(start, serviceDuration, minutes(block.start_time), minutes(block.end_time) - minutes(block.start_time))),
   }));
 }
